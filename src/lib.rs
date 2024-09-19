@@ -8,11 +8,11 @@ pub struct CompressedPosition {
     // Example: piece_placement: u64,
 }
 
-pub fn compress_fen(fen: &str) -> Result<CompressedPosition, Box<dyn std::error::Error>> {
-    todo!("Implement compression logic")
-}
-
-pub fn decompress_position(compressed: u64) -> Result<u64, Box<dyn std::error::Error>> {
-    // Implement decompression logic here
-    todo!("Implement decompression logic")
-}
+// pub fn compress_fen(fen: &str) -> Result<CompressedPosition, Box<dyn std::error::Error>> {
+//     todo!("Implement compression logic")
+// }
+//
+// pub fn decompress_position(compressed: u64) -> Result<u64, Box<dyn std::error::Error>> {
+//     // Implement decompression logic here
+//     todo!("Implement decompression logic")
+// }

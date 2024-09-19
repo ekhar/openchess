@@ -114,12 +114,12 @@ impl CompressedPosition {
 
             //check for en passant pawn
             if piece.role == Role::Pawn
-                && ((piece.color == Color::White && square.rank() == Rank::Third)
-                    || (piece.color == Color::Black && square.rank() == Rank::Sixth))
+                && ((piece.color == Color::White && square.rank() == Rank::Fourth)
+                    || (piece.color == Color::Black && square.rank() == Rank::Fifth))
             {
                 let ep_check_square = match piece.color {
-                    Color::White => Square::from_coords(square.file(), Rank::Second),
-                    Color::Black => Square::from_coords(square.file(), Rank::Seventh),
+                    Color::White => Square::from_coords(square.file(), Rank::Third),
+                    Color::Black => Square::from_coords(square.file(), Rank::Sixth),
                 };
                 if en_passant_squares.contains(&ep_check_square) {
                     nibble_value = 12; // Pawn with ep square behind
@@ -246,14 +246,8 @@ impl CompressedPosition {
                                 Color::White
                             };
                             let ep_square = match color {
-                                Color::White => square
-                                    .rank()
-                                    .offset(1)
-                                    .map(|r| Square::from_coords(square.file(), r)),
-                                Color::Black => square
-                                    .rank()
-                                    .offset(-1)
-                                    .map(|r| Square::from_coords(square.file(), r)),
+                                Color::White => Square::from_coords(square.file(), Rank::Third),
+                                Color::Black => Square::from_coords(square.file(), Rank::Sixth),
                             };
                             en_passant_square = Some(ep_square);
                             (Role::Pawn, color)
@@ -327,7 +321,7 @@ impl CompressedPosition {
         // En passant
         fen.push(' ');
         if let Some(ep_square) = en_passant_square {
-            write!(fen, "{}", ep_square.unwrap()).unwrap();
+            write!(fen, "{}", ep_square).unwrap();
         } else {
             fen.push('-');
         }
@@ -402,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_compress_decompress_with_en_passant() {
-        let fen = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR b KQkq e6 0 2";
+        let fen = " rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3";
         let position = Fen::from_ascii(fen.as_bytes())
             .unwrap()
             .into_position(CastlingMode::Standard)
