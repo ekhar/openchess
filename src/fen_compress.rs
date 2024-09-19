@@ -174,8 +174,11 @@ impl CompressedPosition {
         cp
     }
 
-    /// Decompresses a `CompressedPosition` into a `Chess` position.
     fn decompress(&self) -> Chess {
+        use shakmaty::fen::Fen;
+        use std::collections::HashMap;
+        use std::fmt::Write;
+
         let occupied_bitboard = self.occupied;
         let n = occupied_bitboard.count();
 
@@ -191,91 +194,154 @@ impl CompressedPosition {
             }
         }
 
-        let mut board_builder = BoardBuilder::new();
-        let mut en_passant_square = None;
-        let mut white_castling_rights = CastlingRights::default();
-        let mut black_castling_rights = CastlingRights::default();
-        let mut side_to_move = Color::White;
-
         let mut nibble_iter = nibble_values.into_iter();
 
+        // Map squares to nibble values
+        let mut square_nibbles = HashMap::new();
         for square in occupied_bitboard {
             let nibble_value = nibble_iter.next().unwrap();
-
-            let (piece, color) = match nibble_value {
-                0 => (Role::Pawn, Color::White),
-                1 => (Role::Pawn, Color::Black),
-                2 => (Role::Knight, Color::White),
-                3 => (Role::Knight, Color::Black),
-                4 => (Role::Bishop, Color::White),
-                5 => (Role::Bishop, Color::Black),
-                6 => (Role::Rook, Color::White),
-                7 => (Role::Rook, Color::Black),
-                8 => (Role::Queen, Color::White),
-                9 => (Role::Queen, Color::Black),
-                10 => (Role::King, Color::White),
-                11 => (Role::King, Color::Black),
-                12 => {
-                    // Pawn with en passant square behind
-                    let color = if square.rank() as u8 >= 4 {
-                        Color::Black
-                    } else {
-                        Color::White
-                    };
-                    let ep_square = match color {
-                        Color::White => square.backward().unwrap(),
-                        Color::Black => square.forward().unwrap(),
-                    };
-                    en_passant_square = Some(ep_square);
-                    (Role::Pawn, color)
-                }
-                13 => {
-                    // White rook with corresponding castling rights
-                    if square == Square::A1 {
-                        white_castling_rights.queenside = true;
-                    } else if square == Square::H1 {
-                        white_castling_rights.kingside = true;
-                    }
-                    (Role::Rook, Color::White)
-                }
-                14 => {
-                    // Black rook with corresponding castling rights
-                    if square == Square::A8 {
-                        black_castling_rights.queenside = true;
-                    } else if square == Square::H8 {
-                        black_castling_rights.kingside = true;
-                    }
-                    (Role::Rook, Color::Black)
-                }
-                15 => {
-                    // Black king and black to move
-                    side_to_move = Color::Black;
-                    (Role::King, Color::Black)
-                }
-                _ => panic!("Invalid nibble value: {}", nibble_value),
-            };
-
-            board_builder.set_piece_at(square, piece, color);
+            square_nibbles.insert(square, nibble_value);
         }
 
-        let board = board_builder.build().expect("Invalid board");
+        let mut side_to_move = Color::White;
+        let mut castling_rights = String::new();
+        let mut en_passant_square = None;
 
-        let mut castles = CastlingMode::Standard.to_state();
-        castles.white = white_castling_rights;
-        castles.black = black_castling_rights;
+        // Build the FEN string
+        let mut fen = String::new();
 
-        let en_passant = en_passant_square.map(|sq| shakmaty::EnPassant { to: sq });
+        for rank in (0..8).rev() {
+            if rank != 7 {
+                fen.push('/');
+            }
+            let mut empty_count = 0;
 
-        Chess {
-            board,
-            turn: side_to_move,
-            castles,
-            ep_square: en_passant,
-            halfmove_clock: 0,
-            fullmove_number: 1,
+            for file in 0..8 {
+                let square_index = rank * 8u32 + file;
+                let square = Square::new(square_index);
+                if let Some(&nibble_value) = square_nibbles.get(&square) {
+                    if empty_count > 0 {
+                        write!(&mut fen, "{}", empty_count).unwrap();
+                        empty_count = 0;
+                    }
+
+                    let (role, color) = match nibble_value {
+                        0 => (Role::Pawn, Color::White),
+                        1 => (Role::Pawn, Color::Black),
+                        2 => (Role::Knight, Color::White),
+                        3 => (Role::Knight, Color::Black),
+                        4 => (Role::Bishop, Color::White),
+                        5 => (Role::Bishop, Color::Black),
+                        6 => (Role::Rook, Color::White),
+                        7 => (Role::Rook, Color::Black),
+                        8 => (Role::Queen, Color::White),
+                        9 => (Role::Queen, Color::Black),
+                        10 => (Role::King, Color::White),
+                        11 => (Role::King, Color::Black),
+                        12 => {
+                            // Pawn with en passant square behind
+                            let color = if rank >= 4 {
+                                Color::Black
+                            } else {
+                                Color::White
+                            };
+                            let ep_square = match color {
+                                Color::White => square
+                                    .rank()
+                                    .offset(1)
+                                    .map(|r| Square::from_coords(square.file(), r)),
+                                Color::Black => square
+                                    .rank()
+                                    .offset(-1)
+                                    .map(|r| Square::from_coords(square.file(), r)),
+                            };
+                            en_passant_square = Some(ep_square);
+                            (Role::Pawn, color)
+                        }
+                        13 => {
+                            // White rook with corresponding castling rights
+                            if square == Square::A1 {
+                                castling_rights.push('Q');
+                            } else if square == Square::H1 {
+                                castling_rights.push('K');
+                            }
+                            (Role::Rook, Color::White)
+                        }
+                        14 => {
+                            // Black rook with corresponding castling rights
+                            if square == Square::A8 {
+                                castling_rights.push('q');
+                            } else if square == Square::H8 {
+                                castling_rights.push('k');
+                            }
+                            (Role::Rook, Color::Black)
+                        }
+                        15 => {
+                            // Black king and black to move
+                            side_to_move = Color::Black;
+                            (Role::King, Color::Black)
+                        }
+                        _ => panic!("Invalid nibble value: {}", nibble_value),
+                    };
+
+                    let piece_char = match (role, color) {
+                        (Role::Pawn, Color::White) => 'P',
+                        (Role::Pawn, Color::Black) => 'p',
+                        (Role::Knight, Color::White) => 'N',
+                        (Role::Knight, Color::Black) => 'n',
+                        (Role::Bishop, Color::White) => 'B',
+                        (Role::Bishop, Color::Black) => 'b',
+                        (Role::Rook, Color::White) => 'R',
+                        (Role::Rook, Color::Black) => 'r',
+                        (Role::Queen, Color::White) => 'Q',
+                        (Role::Queen, Color::Black) => 'q',
+                        (Role::King, Color::White) => 'K',
+                        (Role::King, Color::Black) => 'k',
+                    };
+
+                    fen.push(piece_char);
+                } else {
+                    empty_count += 1;
+                }
+            }
+            if empty_count > 0 {
+                write!(&mut fen, "{}", empty_count).unwrap();
+            }
         }
+
+        // Side to move
+        fen.push(' ');
+        fen.push(match side_to_move {
+            Color::White => 'w',
+            Color::Black => 'b',
+        });
+
+        // Castling rights
+        if castling_rights.is_empty() {
+            castling_rights.push('-');
+        }
+
+        fen.push(' ');
+        fen.push_str(&castling_rights);
+
+        // En passant
+        fen.push(' ');
+        if let Some(ep_square) = en_passant_square {
+            write!(fen, "{}", ep_square.unwrap()).unwrap();
+        } else {
+            fen.push('-');
+        }
+
+        // Halfmove clock and fullmove number
+        fen.push_str(" 0 1");
+
+        // Parse the FEN string
+        let position = Fen::from_ascii(fen.as_bytes())
+            .unwrap()
+            .into_position(CastlingMode::Standard)
+            .unwrap();
+        position
     }
-
     /// Reads a `CompressedPosition` from a big-endian byte slice.
     fn read_from_big_endian(data: &[u8]) -> CompressedPosition {
         assert!(data.len() >= 24, "Data too short");
@@ -337,7 +403,10 @@ mod tests {
     #[test]
     fn test_compress_decompress_with_en_passant() {
         let fen = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR b KQkq e6 0 2";
-        let position: Chess = Fen::from_ascii(fen.as_bytes()).unwrap().position().unwrap();
+        let position = Fen::from_ascii(fen.as_bytes())
+            .unwrap()
+            .into_position(CastlingMode::Standard)
+            .unwrap();
         let cp = CompressedPosition::compress(&position);
         let decompressed = cp.decompress();
         assert_eq!(position, decompressed);
@@ -346,7 +415,10 @@ mod tests {
     #[test]
     fn test_compress_decompress_with_castling_rights() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-        let position: Chess = Fen::from_ascii(fen.as_bytes()).unwrap().position().unwrap();
+        let position = Fen::from_ascii(fen.as_bytes())
+            .unwrap()
+            .into_position(CastlingMode::Standard)
+            .unwrap();
         let cp = CompressedPosition::compress(&position);
         let decompressed = cp.decompress();
         assert_eq!(position, decompressed);
@@ -355,7 +427,10 @@ mod tests {
     #[test]
     fn test_compress_decompress_black_to_move() {
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1";
-        let position: Chess = Fen::from_ascii(fen.as_bytes()).unwrap().position().unwrap();
+        let position = Fen::from_ascii(fen.as_bytes())
+            .unwrap()
+            .into_position(CastlingMode::Standard)
+            .unwrap();
         let cp = CompressedPosition::compress(&position);
         let decompressed = cp.decompress();
         assert_eq!(position, decompressed);
