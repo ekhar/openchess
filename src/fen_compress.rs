@@ -127,10 +127,8 @@ impl CompressedPosition {
             }
 
             // Rooks with corresponding castling rights
-            // Rooks with corresponding castling rights
             if piece.role == Role::Rook {
                 let castles = position.castles();
-                let rook_square = Square::from(square);
 
                 let (kingside_rook, queenside_rook) = match piece.color {
                     Color::White => (
@@ -143,7 +141,7 @@ impl CompressedPosition {
                     ),
                 };
 
-                if Some(rook_square) == kingside_rook || Some(rook_square) == queenside_rook {
+                if Some(square) == kingside_rook || Some(square) == queenside_rook {
                     nibble_value = if piece.color == Color::White { 13 } else { 14 };
                 }
             }
