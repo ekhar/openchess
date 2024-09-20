@@ -1,7 +1,13 @@
 // src/pgn_compress.rs
 use crate::huffman_code::get_huffman_code;
-use huffman_compress::{Book, CodeBuilder, Tree};
-use shakmaty::{san::SanPlus, Chess, Color, Move, Position, Role, Square};
+use bit_vec::BitVec;
+use huffman_compress::{Book, Tree};
+use pgn_reader::San;
+use shakmaty::{
+    attacks::{self},
+    san::SanPlus,
+    Chess, Color, Move, Position, Role, Square,
+};
 use std::cmp::Ordering;
 
 // Define ScoredMove struct
@@ -27,7 +33,7 @@ impl ScoredMove {
         let mut score = 0;
 
         if let Some(promotion_role) = mv.promotion() {
-            score += (role_index(promotion_role) as i32) << 26;
+            score += (promotion_role as i32) << 26;
         }
 
         if mv.is_capture() {
@@ -35,12 +41,12 @@ impl ScoredMove {
         }
 
         let defending_pawns =
-            pawn_attacks(them, to_square) & board.board().pieces(Role::Pawn, them).to_bits();
+            attacks::pawn_attacks(them, to_square) & board.board().pawns() & board.board().black();
 
-        let defending_pawns_score = if defending_pawns == 0 {
+        let defending_pawns_score = if defending_pawns.0 == 0 {
             6
         } else {
-            5 - role_index(piece_role) as i32
+            5 - piece_role as i32
         } << 22;
         score += defending_pawns_score;
 
@@ -48,8 +54,8 @@ impl ScoredMove {
             piece_value(board, piece_role, to_square) - piece_value(board, piece_role, from_square);
         score += (512 + move_value) << 12;
 
-        score += (to_square.to_index() as i32) << 6;
-        score += from_square.to_index() as i32;
+        score += (to_square as i32) << 6;
+        score += from_square as i32;
 
         score
     }
@@ -72,30 +78,6 @@ impl Ord for ScoredMove {
 impl PartialOrd for ScoredMove {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
-    }
-}
-
-// Helper functions
-fn role_index(role: Role) -> usize {
-    match role {
-        Role::Pawn => 0,
-        Role::Knight => 1,
-        Role::Bishop => 2,
-        Role::Rook => 3,
-        Role::Queen => 4,
-        Role::King => 5,
-    }
-}
-
-fn pawn_attacks(color: Color, square: Square) -> u64 {
-    let bitboard = 1u64 << square.to_index();
-    match color {
-        Color::White => {
-            ((bitboard & !0x8080808080808080) << 9) | ((bitboard & !0x0101010101010101) << 7)
-        }
-        Color::Black => {
-            ((bitboard & !0x0101010101010101) >> 9) | ((bitboard & !0x8080808080808080) >> 7)
-        }
     }
 }
 
@@ -143,14 +125,14 @@ static PSQT: [[i32; 64]; 6] = [
 fn piece_value(board: &Chess, role: Role, square: Square) -> i32 {
     let us = board.turn();
     let index = if us == Color::White {
-        square.to_index()
+        square as u8
     } else {
-        mirror_square(square.to_index())
+        mirror_square(square as u8)
     };
-    PSQT[role_index(role)][index]
+    PSQT[role as usize - 1][index as usize]
 }
 
-fn mirror_square(sq_index: usize) -> usize {
+fn mirror_square(sq_index: u8) -> u8 {
     sq_index ^ 56
 }
 
@@ -160,22 +142,29 @@ pub struct Encoder {
     tree: &'static Tree<u32>,
 }
 
+impl Default for Encoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Encoder {
     pub fn new() -> Self {
         let (codebook, tree) = get_huffman_code();
         Encoder { codebook, tree }
     }
 
-    pub fn encode(&self, pgn_moves: &[&str]) -> Option<Vec<u8>> {
-        let mut buffer = Vec::new();
+    pub fn encode(&self, pgn_moves: &[&str]) -> Option<BitVec> {
+        let mut buffer = BitVec::new();
         let mut board = Chess::default();
 
         for pgn_move in pgn_moves {
             let san_plus: SanPlus = pgn_move.parse().ok()?;
-            let mv = san_plus.to_move(&board).ok()?;
+            let mv = san_plus.san.to_move(&board).ok()?;
 
             let legal_moves = board.legal_moves();
             let mut scored_moves: Vec<ScoredMove> = legal_moves
+                .into_iter()
                 .map(|legal_mv| ScoredMove::new(&board, legal_mv))
                 .collect();
             scored_moves.sort();
@@ -190,19 +179,21 @@ impl Encoder {
         Some(buffer)
     }
 
-    pub fn decode(&self, data: &[u8], plies: usize) -> Option<Vec<String>> {
+    pub fn decode(&self, data: &BitVec, plies: usize) -> Option<Vec<String>> {
         let mut output = Vec::new();
         let mut board = Chess::default();
 
-        let mut decoder = self.tree.decoder(data);
+        let mut decoder = self.tree.decoder(data, plies);
 
         for _ in 0..plies {
             let legal_moves = board.legal_moves();
-            let mut scored_moves: Vec<ScoredMove> =
-                legal_moves.map(|mv| ScoredMove::new(&board, mv)).collect();
+            let mut scored_moves: Vec<ScoredMove> = legal_moves
+                .into_iter()
+                .map(|mv| ScoredMove::new(&board, mv))
+                .collect();
             scored_moves.sort();
 
-            let index = decoder.next().unwrap().ok()? as usize;
+            let index = decoder.next()? as usize;
 
             if index >= scored_moves.len() {
                 return None;
@@ -210,7 +201,7 @@ impl Encoder {
 
             let sm = &scored_moves[index];
 
-            let san = sm.mv.to_san(&board);
+            let san = San::from_move(&board, &sm.mv);
 
             output.push(format!("{}", san));
 
@@ -228,9 +219,12 @@ mod tests {
     #[test]
     fn test_encode_decode() {
         let pgn_moves = vec![
-            "e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3",
-            "d6", "c3", "O-O", "h3", "Nb8", "d4", "cxd4", "cxd4", "Nbd7", "Nc3", "Bb7", "a3", "c5",
-            "d5", "c4", "Bc2", "Nc5",
+            "e4", "c5", "Nf3", "d6", "Bb5+", "Bd7", "Bxd7+", "Nxd7", "O-O", "Ngf6", "Re1", "e6",
+            "d4", "cxd4", "Nxd4", "Be7", "c4", "a6", "Nc3", "O-O", "Be3", "Rc8", "b3", "e5", "Nf5",
+            "b5", "Nxd6", "Bxd6", "Qxd6", "bxc4", "b4", "a5", "a3", "Re8", "Rad1", "Re6", "Qd2",
+            "Rb8", "Bg5", "Qb6", "Be3", "Qb7", "f3", "axb4", "axb4", "Qxb4", "Rb1", "Qd6", "Rxb8+",
+            "Qxb8", "Rb1", "Qc7", "Nd5", "Nxd5", "exd5", "Rd6", "f4", "c3", "Qc2", "Rxd5", "fxe5",
+            "Nxe5", "Qxc3", "h6",
         ];
 
         let encoder = Encoder::new();
