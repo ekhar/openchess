@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use shakmaty::{
     Bitboard, CastlingMode, CastlingSide, Chess, Color, Piece, Position, Rank, Role, Square,
 };

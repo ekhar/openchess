@@ -13,5 +13,6 @@ serde_with = "3"
 
 btoi = "0.4"
 
+huffman-compress = "0.6"
 crossbeam = "0.8"
 reqwest = { version = "0.12", features = ["blocking", "json"] }

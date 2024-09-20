@@ -1,6 +1,7 @@
-mod fen_compress;
-mod import_pgn;
-mod pgn_compress;
+pub mod fen_compress;
+pub mod huffman_code;
+pub mod import_pgn;
+pub mod pgn_compress;
 // src/lib.rs
 
 pub struct CompressedPosition {
