@@ -2,10 +2,9 @@
 use crate::huffman_code::get_huffman_code;
 use bit_vec::BitVec;
 use huffman_compress::{Book, Tree};
-use pgn_reader::San;
 use shakmaty::{
     attacks::{self},
-    san::SanPlus,
+    san::{San, SanPlus, Suffix},
     Chess, Color, Move, Position, Role, Square,
 };
 use std::cmp::Ordering;
@@ -202,10 +201,11 @@ impl Encoder {
             let sm = &scored_moves[index];
 
             let san = San::from_move(&board, &sm.mv);
-
-            output.push(format!("{}", san));
-
             board = board.play(&sm.mv).ok()?;
+            let suffix = Suffix::from_position(&board);
+            let san_plus = SanPlus { san, suffix };
+
+            output.push(format!("{}", san_plus));
         }
 
         Some(output)
@@ -215,9 +215,10 @@ impl Encoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     #[test]
-    fn test_encode_decode() {
+    fn test_encode_decode_improved() {
         let pgn_moves = vec![
             "e4", "c5", "Nf3", "d6", "Bb5+", "Bd7", "Bxd7+", "Nxd7", "O-O", "Ngf6", "Re1", "e6",
             "d4", "cxd4", "Nxd4", "Be7", "c4", "a6", "Nc3", "O-O", "Be3", "Rc8", "b3", "e5", "Nf5",
@@ -227,16 +228,48 @@ mod tests {
             "Nxe5", "Qxc3", "h6",
         ];
 
+        // Step 1: Calculate the original size of the PGN moves in bytes
+        // Join the moves with spaces to simulate a PGN string
+        let original_pgn = pgn_moves.join(" ");
+        let original_size_bytes = original_pgn.len();
+        println!("Original PGN size: {} bytes", original_size_bytes);
+
+        // Step 2: Initialize the encoder
         let encoder = Encoder::new();
 
-        // Encode the moves
-        let compressed = encoder.encode(&pgn_moves).unwrap();
-        println!("Compressed data size: {} bytes", compressed.len());
+        // Step 3: Measure the time taken to encode the moves
+        let encode_start = Instant::now();
+        let compressed = encoder.encode(&pgn_moves).expect("Encoding failed");
+        let encode_duration = encode_start.elapsed();
+        println!("Encoding time: {:.2?}", encode_duration);
 
-        // Decode the moves
-        let decoded_moves = encoder.decode(&compressed, pgn_moves.len()).unwrap();
+        // Step 4: Calculate the size of the compressed data in bits and bytes
+        let compressed_size_bits = compressed.len();
+        let compressed_size_bytes = (compressed_size_bits + 7) / 8; // Round up to nearest byte
+        println!(
+            "Compressed data size: {} bits ({} bytes)",
+            compressed_size_bits, compressed_size_bytes
+        );
 
-        // Verify that the original and decoded moves match
+        // Step 5: Calculate the compression ratio
+        let compression_ratio = (original_size_bytes as f64) / (compressed_size_bytes as f64);
+        println!("Compression ratio: {:.2}%", compression_ratio * 100.0);
+
+        // Step 6: Measure the time taken to decode the moves
+        let decode_start = Instant::now();
+        let decoded_moves = encoder
+            .decode(&compressed, pgn_moves.len())
+            .expect("Decoding failed");
+        let decode_duration = decode_start.elapsed();
+        println!("Decoding time: {:.2?}", decode_duration);
+
+        // Step 7: Verify that the original and decoded moves match
         assert_eq!(pgn_moves, decoded_moves);
+
+        // Optional: Ensure that the compressed size is indeed smaller than the original
+        assert!(
+            compressed_size_bits < original_size_bytes * 8,
+            "Compression did not reduce the size"
+        );
     }
 }
