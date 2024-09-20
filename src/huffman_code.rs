@@ -269,11 +269,13 @@ static HUFFMAN_CODE: OnceLock<(Book<u32>, Tree<u32>)> = OnceLock::new();
 /// Retrieves the static Huffman `Book` and `Tree`.
 ///
 /// The Huffman code is initialized on the first call and reused thereafter.
+#[inline]
 pub fn get_huffman_code() -> &'static (Book<u32>, Tree<u32>) {
-    HUFFMAN_CODE.get_or_init(|| build_huffman_code())
+    HUFFMAN_CODE.get_or_init(build_huffman_code)
 }
 
 /// Builds the Huffman `Book` and `Tree` using the defined frequency table.
+#[inline]
 fn build_huffman_code() -> (Book<u32>, Tree<u32>) {
     let builder = CodeBuilder::from_iter(FREQUENCIES.iter().cloned());
     builder.finish()
