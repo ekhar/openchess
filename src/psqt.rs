@@ -1,9 +1,11 @@
+// src/psqt.rs
 use shakmaty::{Chess, Color, Position, Role, Square};
 use std::sync::OnceLock;
 
 // Define the PSQT as a static OnceLock
 static PSQT: OnceLock<[[i32; 64]; 6]> = OnceLock::new();
 
+#[inline]
 pub fn get_psqt() -> &'static [[i32; 64]; 6] {
     PSQT.get_or_init(|| {
         [

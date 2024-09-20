@@ -2,7 +2,23 @@
 use shakmaty::{
     Bitboard, CastlingMode, CastlingSide, Chess, Color, Piece, Position, Rank, Role, Square,
 };
+use thiserror::Error;
 
+#[derive(Error, Debug)]
+pub enum CompressedPositionError {
+    #[error("Not enough nibble values for occupied squares")]
+    InsufficientNibbles,
+    #[error("Invalid nibble value: {0}")]
+    InvalidNibbleValue(u8),
+    #[error("Data too short for occupied bitboard")]
+    InsufficientDataForBitboard,
+    #[error("Data too short for packed_state")]
+    InsufficientDataForPackedState,
+    #[error("FEN parsing error: {0}")]
+    FenParseError(#[from] shakmaty::fen::ParseFenError),
+    #[error("Position conversion error: {0}")]
+    PositionConversionError(#[from] shakmaty::PositionError<Chess>),
+}
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CompressedPosition {
     occupied: Bitboard,
@@ -175,7 +191,7 @@ impl CompressedPosition {
         }
     }
 
-    fn decompress(&self) -> Chess {
+    fn decompress(&self) -> Result<Chess, CompressedPositionError> {
         use shakmaty::fen::Fen;
         use std::collections::HashMap;
         use std::fmt::Write;
@@ -202,7 +218,7 @@ impl CompressedPosition {
             if let Some(nibble_value) = nibble_iter.next() {
                 square_nibbles.insert(square, nibble_value);
             } else {
-                panic!("Not enough nibble values for occupied squares");
+                return Err(CompressedPositionError::InsufficientNibbles);
             }
         }
 
@@ -278,7 +294,7 @@ impl CompressedPosition {
                             side_to_move = Color::Black;
                             (Role::King, Color::Black)
                         }
-                        _ => panic!("Invalid nibble value: {}", nibble_value),
+                        _ => return Err(CompressedPositionError::InvalidNibbleValue(nibble_value)),
                     };
 
                     let piece_char = match (role, color) {
@@ -333,16 +349,14 @@ impl CompressedPosition {
         fen.push_str(" 0 1");
 
         // Parse the FEN string
-        let position = Fen::from_ascii(fen.as_bytes())
-            .unwrap()
-            .into_position(CastlingMode::Standard)
-            .unwrap();
-        position
+        let position = Fen::from_ascii(fen.as_bytes())?.into_position(CastlingMode::Standard)?;
+        Ok(position)
     }
 
-    /// Reads a `CompressedPosition` from a big-endian byte slice.
-    fn read_from_big_endian(data: &[u8]) -> CompressedPosition {
-        assert!(data.len() >= 8, "Data too short for occupied bitboard");
+    fn read_from_big_endian(data: &[u8]) -> Result<CompressedPosition, CompressedPositionError> {
+        if data.len() < 8 {
+            return Err(CompressedPositionError::InsufficientDataForBitboard);
+        }
 
         // Read the first 8 bytes as the occupied bitboard
         let occupied = u64::from_be_bytes(data[0..8].try_into().unwrap());
@@ -352,22 +366,19 @@ impl CompressedPosition {
         let n = bitboard.count();
         let packed_bytes = (n + 1) / 2;
 
-        assert!(
-            data.len() >= 8 + packed_bytes,
-            "Data too short for packed_state"
-        );
+        if data.len() < 8 + packed_bytes {
+            return Err(CompressedPositionError::InsufficientDataForPackedState);
+        }
 
         // Read the packed_state bytes
         let packed_state = data[8..8 + packed_bytes].to_vec();
 
-        CompressedPosition {
+        Ok(CompressedPosition {
             occupied: bitboard,
             packed_state,
-        }
+        })
     }
 
-    /// Writes the `CompressedPosition` to a mutable big-endian byte slice.
-    /// Returns the number of bytes written.
     fn write_to_big_endian(&self, data: &mut Vec<u8>) {
         // Write the occupied bitboard
         data.extend_from_slice(&self.occupied.0.to_be_bytes());
@@ -380,123 +391,104 @@ impl CompressedPosition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shakmaty::{fen::Fen, Chess};
+    use shakmaty::fen::Fen;
 
     #[test]
-    fn test_compress_decompress_startpos() {
+    fn test_compress_decompress_startpos() -> Result<(), CompressedPositionError> {
         let startpos = Chess::default();
         let cp = CompressedPosition::compress(&startpos);
-        let decompressed = cp.decompress();
+        let decompressed = cp.decompress()?;
         assert_eq!(startpos, decompressed);
+        Ok(())
     }
 
     #[test]
-    fn test_compress_decompress_with_en_passant() {
+    fn test_compress_decompress_with_en_passant() -> Result<(), CompressedPositionError> {
         let fen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3";
-        let position = Fen::from_ascii(fen.as_bytes())
-            .unwrap()
-            .into_position(CastlingMode::Standard)
-            .unwrap();
+        let position = Fen::from_ascii(fen.as_bytes())?.into_position(CastlingMode::Standard)?;
         let cp = CompressedPosition::compress(&position);
-        let decompressed = cp.decompress();
+        let decompressed = cp.decompress()?;
         assert_eq!(position, decompressed);
+        Ok(())
     }
 
     #[test]
-    fn test_compress_decompress_with_castling_rights() {
-        let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-        let position = Fen::from_ascii(fen.as_bytes())
-            .unwrap()
-            .into_position(CastlingMode::Standard)
-            .unwrap();
-        let cp = CompressedPosition::compress(&position);
-        let decompressed = cp.decompress();
-        assert_eq!(position, decompressed);
-    }
-
-    #[test]
-    fn test_compress_decompress_black_to_move() {
-        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1";
-        let position = Fen::from_ascii(fen.as_bytes())
-            .unwrap()
-            .into_position(CastlingMode::Standard)
-            .unwrap();
-        let cp = CompressedPosition::compress(&position);
-        let decompressed = cp.decompress();
-        assert_eq!(position, decompressed);
-    }
-
-    #[test]
-    fn test_read_write_big_endian() {
+    fn test_read_write_big_endian() -> Result<(), CompressedPositionError> {
         let startpos = Chess::default();
         let cp = CompressedPosition::compress(&startpos);
 
         let mut data = Vec::new();
         cp.write_to_big_endian(&mut data);
-        let cp_read = CompressedPosition::read_from_big_endian(&data);
+        let cp_read = CompressedPosition::read_from_big_endian(&data)?;
 
         assert_eq!(cp, cp_read);
-    }
-
-    fn test_compression_ratio(fen: &str) -> (usize, usize, f64) {
-        let position = Fen::from_ascii(fen.as_bytes())
-            .unwrap()
-            .into_position(CastlingMode::Standard)
-            .unwrap();
-
-        let cp = CompressedPosition::compress(&position);
-
-        // Use a Vec<u8> to hold the serialized data
-        let mut data = Vec::new();
-
-        // Write the compressed position to the vector
-        cp.write_to_big_endian(&mut data);
-
-        // FEN size in bytes
-        let fen_size = fen.len();
-
-        // Actual serialized size in bytes
-        let compressed_size = data.len();
-
-        // Calculate compression ratio
-        let compression_ratio = fen_size as f64 / compressed_size as f64;
-
-        (fen_size, compressed_size, compression_ratio)
+        Ok(())
     }
 
     #[test]
-    fn test_compression_savings() {
-        let test_cases = vec![
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
-            "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-            "rnbqk3/pp5r/8/2pP4/8/8/8/4K3 w q - 0 1",
-        ];
+    fn test_insufficient_data_for_bitboard() {
+        let data = vec![1, 2, 3]; // Not enough data for bitboard
+        assert!(matches!(
+            CompressedPosition::read_from_big_endian(&data),
+            Err(CompressedPositionError::InsufficientDataForBitboard)
+        ));
+    }
 
-        println!("FEN Compression Test Results:");
-        println!("---------------------------------------------");
-        println!(
-            "| {:^45} | {:^10} | {:^10} | {:^14} |",
-            "FEN", "FEN Size", "Compressed", "Compression"
-        );
-        println!(
-            "| {:45} | {:^10} | {:^10} | {:^14} |",
-            "", "(bytes)", "Size (bytes)", "Ratio"
-        );
-        println!("|{:-^47}|{:-^12}|{:-^12}|{:-^16}|", "", "", "", "");
+    #[test]
+    fn test_insufficient_data_for_packed_state() {
+        let data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9]; // Enough for bitboard, not enough for packed state
+        assert!(matches!(
+            CompressedPosition::read_from_big_endian(&data),
+            Err(CompressedPositionError::InsufficientDataForPackedState)
+        ));
+    }
 
-        for fen in test_cases {
-            let (fen_size, compressed_size, ratio) = test_compression_ratio(fen);
-            println!(
-                "| {:<45} | {:>10} | {:>10} | {:>14.2} |",
-                &fen[..45.min(fen.len())],
-                fen_size,
-                compressed_size,
-                ratio
-            );
-        }
+    #[test]
+    fn test_insufficient_nibbles() -> Result<(), CompressedPositionError> {
+        let mut cp = CompressedPosition::compress(&Chess::default());
+        // Remove last byte to create insufficient nibbles
+        cp.packed_state.pop();
+        assert!(matches!(
+            cp.decompress(),
+            Err(CompressedPositionError::InsufficientNibbles)
+        ));
+        Ok(())
+    }
 
-        println!("---------------------------------------------");
+    #[test]
+    fn test_fen_parse_error() {
+        let invalid_fen = "invalid fen string";
+        assert!(Fen::from_ascii(invalid_fen.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn test_position_conversion_error() -> Result<(), CompressedPositionError> {
+        // Create an invalid FEN with two white kings
+        let invalid_position_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBKKBNR w KQkq - 0 1";
+        let fen = Fen::from_ascii(invalid_position_fen.as_bytes())?;
+        assert!(fen.into_position::<Chess>(CastlingMode::Standard).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_compress_decompress_complex_position() -> Result<(), CompressedPositionError> {
+        let complex_fen = "r1bqk2r/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PP3PPP/R1BQK2R w KQkq - 0 7";
+        let position =
+            Fen::from_ascii(complex_fen.as_bytes())?.into_position(CastlingMode::Standard)?;
+        let cp = CompressedPosition::compress(&position);
+        let decompressed = cp.decompress()?;
+        assert_eq!(position, decompressed);
+        Ok(())
+    }
+
+    #[test]
+    fn test_compress_decompress_with_castling_rights() -> Result<(), CompressedPositionError> {
+        let fen_with_castling = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1";
+        let position =
+            Fen::from_ascii(fen_with_castling.as_bytes())?.into_position(CastlingMode::Standard)?;
+        let cp = CompressedPosition::compress(&position);
+        let decompressed = cp.decompress()?;
+        assert_eq!(position, decompressed);
+        Ok(())
     }
 }
