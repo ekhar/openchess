@@ -1,10 +1,11 @@
 use shakmaty::{
     Bitboard, CastlingMode, CastlingSide, Chess, Color, Piece, Position, Rank, Role, Square,
 };
-#[derive(Debug, Clone, Copy)]
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CompressedPosition {
     occupied: Bitboard,
-    packed_state: [u8; 16],
+    packed_state: Vec<u8>,
 }
 
 impl CompressedPosition {
@@ -41,14 +42,8 @@ impl CompressedPosition {
     // Only N nibbles are present. (N+1)/2 bytes are initialized.
 
     fn compress(position: &Chess) -> CompressedPosition {
-        let mut cp = CompressedPosition {
-            occupied: Bitboard::EMPTY,
-            packed_state: [0u8; 16],
-        };
-
         let board = position.board();
         let occupied_bitboard = board.occupied();
-        cp.occupied = occupied_bitboard;
 
         let en_passant_squares: Vec<Square> = position
             .en_passant_moves()
@@ -112,7 +107,7 @@ impl CompressedPosition {
                 } => 11,
             };
 
-            //check for en passant pawn
+            // Check for en passant pawn
             if piece.role == Role::Pawn
                 && ((piece.color == Color::White && square.rank() == Rank::Fourth)
                     || (piece.color == Color::Black && square.rank() == Rank::Fifth))
@@ -157,19 +152,26 @@ impl CompressedPosition {
             nibble_values.push(nibble_value as u8);
         }
 
-        // Pack nibbles into bytes
+        // Calculate the number of bytes needed
         let n = nibble_values.len();
-        for i in 0..((n + 1) / 2) {
+        let packed_bytes = (n + 1) / 2;
+
+        // Pack nibbles into bytes
+        let mut packed_state = Vec::with_capacity(packed_bytes);
+        for i in 0..packed_bytes {
             let low_nibble = nibble_values[2 * i];
             let high_nibble = if 2 * i + 1 < n {
                 nibble_values[2 * i + 1]
             } else {
                 0
             };
-            cp.packed_state[i] = low_nibble | (high_nibble << 4);
+            packed_state.push(low_nibble | (high_nibble << 4));
         }
 
-        cp
+        CompressedPosition {
+            occupied: occupied_bitboard,
+            packed_state,
+        }
     }
 
     fn decompress(&self) -> Chess {
@@ -182,8 +184,7 @@ impl CompressedPosition {
 
         // Extract nibbles from packed_state
         let mut nibble_values = Vec::with_capacity(n);
-        for i in 0..((n + 1) / 2) {
-            let byte = self.packed_state[i];
+        for byte in &self.packed_state {
             let low_nibble = byte & 0x0F;
             let high_nibble = (byte >> 4) & 0x0F;
             nibble_values.push(low_nibble);
@@ -197,8 +198,11 @@ impl CompressedPosition {
         // Map squares to nibble values
         let mut square_nibbles = HashMap::new();
         for square in occupied_bitboard {
-            let nibble_value = nibble_iter.next().unwrap();
-            square_nibbles.insert(square, nibble_value);
+            if let Some(nibble_value) = nibble_iter.next() {
+                square_nibbles.insert(square, nibble_value);
+            } else {
+                panic!("Not enough nibble values for occupied squares");
+            }
         }
 
         let mut side_to_move = Color::White;
@@ -334,55 +338,48 @@ impl CompressedPosition {
             .unwrap();
         position
     }
+
     /// Reads a `CompressedPosition` from a big-endian byte slice.
     fn read_from_big_endian(data: &[u8]) -> CompressedPosition {
-        assert!(data.len() >= 24, "Data too short");
+        assert!(data.len() >= 8, "Data too short for occupied bitboard");
+
+        // Read the first 8 bytes as the occupied bitboard
         let occupied = u64::from_be_bytes(data[0..8].try_into().unwrap());
-        let mut packed_state = [0u8; 16];
-        packed_state.copy_from_slice(&data[8..24]);
+        let bitboard = Bitboard(occupied);
+
+        // Count the number of bits set to determine the number of nibbles
+        let n = bitboard.count();
+        let packed_bytes = (n + 1) / 2;
+
+        assert!(
+            data.len() >= 8 + packed_bytes,
+            "Data too short for packed_state"
+        );
+
+        // Read the packed_state bytes
+        let packed_state = data[8..8 + packed_bytes].to_vec();
+
         CompressedPosition {
-            occupied: Bitboard(occupied),
+            occupied: bitboard,
             packed_state,
         }
     }
 
     /// Writes the `CompressedPosition` to a mutable big-endian byte slice.
-    fn write_to_big_endian(&self, data: &mut [u8]) {
-        assert!(data.len() >= 24, "Data buffer too small");
-        data[0..8].copy_from_slice(&self.occupied.0.to_be_bytes());
-        data[8..24].copy_from_slice(&self.packed_state);
-    }
-}
+    /// Returns the number of bytes written.
+    fn write_to_big_endian(&self, data: &mut Vec<u8>) {
+        // Write the occupied bitboard
+        data.extend_from_slice(&self.occupied.0.to_be_bytes());
 
-use std::cmp::Ordering;
-
-impl PartialEq for CompressedPosition {
-    fn eq(&self, other: &Self) -> bool {
-        self.occupied == other.occupied && self.packed_state == other.packed_state
-    }
-}
-
-impl Eq for CompressedPosition {}
-
-impl PartialOrd for CompressedPosition {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CompressedPosition {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.occupied.0.cmp(&other.occupied.0) {
-            Ordering::Equal => self.packed_state.cmp(&other.packed_state),
-            other => other,
-        }
+        // Write the packed_state bytes
+        data.extend_from_slice(&self.packed_state);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shakmaty::{fen::Fen, Chess, Position};
+    use shakmaty::{fen::Fen, Chess};
 
     #[test]
     fn test_compress_decompress_startpos() {
@@ -394,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_compress_decompress_with_en_passant() {
-        let fen = " rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3";
+        let fen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3";
         let position = Fen::from_ascii(fen.as_bytes())
             .unwrap()
             .into_position(CastlingMode::Standard)
@@ -433,10 +430,72 @@ mod tests {
         let startpos = Chess::default();
         let cp = CompressedPosition::compress(&startpos);
 
-        let mut data = [0u8; 24];
+        let mut data = Vec::new();
         cp.write_to_big_endian(&mut data);
         let cp_read = CompressedPosition::read_from_big_endian(&data);
 
         assert_eq!(cp, cp_read);
+    }
+
+    fn test_compression_ratio(fen: &str) -> (usize, usize, f64) {
+        let position = Fen::from_ascii(fen.as_bytes())
+            .unwrap()
+            .into_position(CastlingMode::Standard)
+            .unwrap();
+
+        let cp = CompressedPosition::compress(&position);
+
+        // Use a Vec<u8> to hold the serialized data
+        let mut data = Vec::new();
+
+        // Write the compressed position to the vector
+        cp.write_to_big_endian(&mut data);
+
+        // FEN size in bytes
+        let fen_size = fen.len();
+
+        // Actual serialized size in bytes
+        let compressed_size = data.len();
+
+        // Calculate compression ratio
+        let compression_ratio = fen_size as f64 / compressed_size as f64;
+
+        (fen_size, compressed_size, compression_ratio)
+    }
+
+    #[test]
+    fn test_compression_savings() {
+        let test_cases = vec![
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
+            "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "rnbqk3/pp5r/8/2pP4/8/8/8/4K3 w q - 0 1",
+        ];
+
+        println!("FEN Compression Test Results:");
+        println!("---------------------------------------------");
+        println!(
+            "| {:^45} | {:^10} | {:^10} | {:^14} |",
+            "FEN", "FEN Size", "Compressed", "Compression"
+        );
+        println!(
+            "| {:45} | {:^10} | {:^10} | {:^14} |",
+            "", "(bytes)", "Size (bytes)", "Ratio"
+        );
+        println!("|{:-^47}|{:-^12}|{:-^12}|{:-^16}|", "", "", "", "");
+
+        for fen in test_cases {
+            let (fen_size, compressed_size, ratio) = test_compression_ratio(fen);
+            println!(
+                "| {:<45} | {:>10} | {:>10} | {:>14.2} |",
+                &fen[..45.min(fen.len())],
+                fen_size,
+                compressed_size,
+                ratio
+            );
+        }
+
+        println!("---------------------------------------------");
     }
 }
