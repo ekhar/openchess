@@ -5,17 +5,9 @@ edition = "2021"
 
 [dependencies]
 shakmaty = "0.27"
-criterion = "0.5"
 pgn-reader = "0.26"
-serde = { version = "1.0", features = ["derive"] }
-
-serde_with = "3"
-
-btoi = "0.4"
 
 huffman-compress = "0.6"
-crossbeam = "0.8"
-reqwest = { version = "0.12", features = ["blocking", "json"] }
 
 bit-vec = "0.6.3"
 thiserror = "1.0"
