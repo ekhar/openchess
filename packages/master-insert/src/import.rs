@@ -1,6 +1,7 @@
 use pgn_reader::{BufferedReader, Color, Outcome, RawHeader, SanPlus, Skip, Visitor};
 use serde::Serialize;
 use serde_with::{formats::SpaceSeparator, serde_as, DisplayFromStr, StringWithSeparator};
+use shakmaty::Chess;
 use std::{io, mem, thread};
 
 #[derive(Debug, Serialize, Copy, Clone)]
@@ -256,7 +257,7 @@ pub async fn import_pgn(pgn_str: &[u8]) -> Result<usize, io::Error> {
 
         //Todo: very janky fix this
         while let Ok(batch) = rx.recv() {
-            let res = client
+            let _res = client
                 .put(format!("{}/import/lichess", args.endpoint))
                 .json(&batch.games)
                 .send()

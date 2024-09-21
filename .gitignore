@@ -1,1 +1,27 @@
-/target
+# Dependencies
+node_modules/
+
+# Rust
+target/
+
+# Environment variables
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build output
+dist/
+build/
+
+# Supabase
+supabase/.temp/

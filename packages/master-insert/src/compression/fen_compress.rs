@@ -58,11 +58,7 @@ impl CompressedPosition {
     // Let N be the number of bits set in occupied bitboard.
     // Only N nibbles are present. (N+1)/2 bytes are initialized.
 
-    fn compress(fen: &str) -> Result<CompressedPosition, CompressedPositionError> {
-        use shakmaty::fen::Fen;
-
-        let position: Chess =
-            Fen::from_ascii(fen.as_bytes())?.into_position(CastlingMode::Standard)?;
+    fn compress(position: &Chess) -> CompressedPosition {
         let board = position.board();
         let occupied_bitboard = board.occupied();
 
@@ -189,13 +185,14 @@ impl CompressedPosition {
             packed_state.push(low_nibble | (high_nibble << 4));
         }
 
-        Ok(CompressedPosition {
+        CompressedPosition {
             occupied: occupied_bitboard,
             packed_state,
-        })
+        }
     }
 
-    fn decompress(&self) -> Result<String, CompressedPositionError> {
+    fn decompress(&self) -> Result<Chess, CompressedPositionError> {
+        use shakmaty::fen::Fen;
         use std::collections::HashMap;
         use std::fmt::Write;
 
@@ -338,17 +335,22 @@ impl CompressedPosition {
         }
 
         fen.push(' ');
-        fen.push_str(&castling_rights.chars().rev().collect::<String>());
+        fen.push_str(&castling_rights);
 
         // En passant
+        fen.push(' ');
         if let Some(ep_square) = en_passant_square {
-            fen.push(' ');
             write!(fen, "{}", ep_square).unwrap();
+        } else {
+            fen.push('-');
         }
 
+        // Halfmove clock and fullmove number
+        fen.push_str(" 0 1");
+
         // Parse the FEN string
-        // let position = Fen::from_ascii(fen.as_bytes())?.into_position(CastlingMode::Standard)?;
-        Ok(fen)
+        let position = Fen::from_ascii(fen.as_bytes())?.into_position(CastlingMode::Standard)?;
+        Ok(position)
     }
 
     fn read_from_big_endian(data: &[u8]) -> Result<CompressedPosition, CompressedPositionError> {
@@ -389,11 +391,12 @@ impl CompressedPosition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shakmaty::fen::Fen;
 
     #[test]
     fn test_compress_decompress_startpos() -> Result<(), CompressedPositionError> {
-        let startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq";
-        let cp = CompressedPosition::compress(startpos)?;
+        let startpos = Chess::default();
+        let cp = CompressedPosition::compress(&startpos);
         let decompressed = cp.decompress()?;
         assert_eq!(startpos, decompressed);
         Ok(())
@@ -401,20 +404,23 @@ mod tests {
 
     #[test]
     fn test_compress_decompress_with_en_passant() -> Result<(), CompressedPositionError> {
-        let fen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq";
-        let cp = CompressedPosition::compress(fen)?;
+        let fen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3";
+        let position = Fen::from_ascii(fen.as_bytes())?.into_position(CastlingMode::Standard)?;
+        let cp = CompressedPosition::compress(&position);
         let decompressed = cp.decompress()?;
-        assert_eq!(fen, decompressed);
+        assert_eq!(position, decompressed);
         Ok(())
     }
 
     #[test]
     fn test_read_write_big_endian() -> Result<(), CompressedPositionError> {
-        let startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq";
-        let cp = CompressedPosition::compress(startpos)?;
+        let startpos = Chess::default();
+        let cp = CompressedPosition::compress(&startpos);
+
         let mut data = Vec::new();
         cp.write_to_big_endian(&mut data);
         let cp_read = CompressedPosition::read_from_big_endian(&data)?;
+
         assert_eq!(cp, cp_read);
         Ok(())
     }
@@ -439,8 +445,7 @@ mod tests {
 
     #[test]
     fn test_insufficient_nibbles() -> Result<(), CompressedPositionError> {
-        let startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        let mut cp = CompressedPosition::compress(startpos)?;
+        let mut cp = CompressedPosition::compress(&Chess::default());
         // Remove last byte to create insufficient nibbles
         cp.packed_state.pop();
         assert!(matches!(
@@ -453,32 +458,37 @@ mod tests {
     #[test]
     fn test_fen_parse_error() {
         let invalid_fen = "invalid fen string";
-        assert!(CompressedPosition::compress(invalid_fen).is_err());
+        assert!(Fen::from_ascii(invalid_fen.as_bytes()).is_err());
     }
 
     #[test]
     fn test_position_conversion_error() -> Result<(), CompressedPositionError> {
         // Create an invalid FEN with two white kings
-        let invalid_position_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBKKBNR w KQkq";
-        assert!(CompressedPosition::compress(invalid_position_fen).is_err());
+        let invalid_position_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBKKBNR w KQkq - 0 1";
+        let fen = Fen::from_ascii(invalid_position_fen.as_bytes())?;
+        assert!(fen.into_position::<Chess>(CastlingMode::Standard).is_err());
         Ok(())
     }
 
     #[test]
     fn test_compress_decompress_complex_position() -> Result<(), CompressedPositionError> {
-        let complex_fen = "r1bqk2r/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PP3PPP/R1BQK2R w KQkq";
-        let cp = CompressedPosition::compress(complex_fen)?;
+        let complex_fen = "r1bqk2r/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PP3PPP/R1BQK2R w KQkq - 0 7";
+        let position =
+            Fen::from_ascii(complex_fen.as_bytes())?.into_position(CastlingMode::Standard)?;
+        let cp = CompressedPosition::compress(&position);
         let decompressed = cp.decompress()?;
-        assert_eq!(complex_fen, decompressed);
+        assert_eq!(position, decompressed);
         Ok(())
     }
 
     #[test]
     fn test_compress_decompress_with_castling_rights() -> Result<(), CompressedPositionError> {
-        let fen_with_castling = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq";
-        let cp = CompressedPosition::compress(fen_with_castling)?;
+        let fen_with_castling = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1";
+        let position =
+            Fen::from_ascii(fen_with_castling.as_bytes())?.into_position(CastlingMode::Standard)?;
+        let cp = CompressedPosition::compress(&position);
         let decompressed = cp.decompress()?;
-        assert_eq!(fen_with_castling, decompressed);
+        assert_eq!(position, decompressed);
         Ok(())
     }
 }
