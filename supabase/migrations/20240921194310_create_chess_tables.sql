@@ -26,8 +26,8 @@ CREATE TABLE master_games (
     result game_result NOT NULL,
     compressed_pgn BYTEA NOT NULL,
     position_sequence INTEGER[] NOT NULL, -- Changed from BYTEA[]
-    white_elo SMALLINT,
-    black_elo SMALLINT,
+    white_elo SMALLINT NOT NULL,
+    black_elo SMALLINT NOT NULL,
     time_control speed 
 );
 
@@ -42,8 +42,8 @@ CREATE TABLE player_games (
     compressed_pgn BYTEA NOT NULL,
     position_sequence INTEGER[] NOT NULL, -- Changed from BYTEA[]
     site site,
-    white_elo SMALLINT,
-    black_elo SMALLINT,
+    white_elo SMALLINT NOT NULL,
+    black_elo SMALLINT NOT NULL,
     time_control speed 
 );
 
