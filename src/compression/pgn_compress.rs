@@ -1,4 +1,4 @@
-// src/pgn_compress.rs
+// src/compression/pgn_compress.rs
 use crate::huffman_code::get_huffman_code;
 use crate::psqt::piece_value;
 use bit_vec::BitVec;
@@ -32,6 +32,7 @@ impl From<EncodeError> for EncoderError {
         EncoderError::HuffmanEncodeError(error)
     }
 }
+
 // Define ScoredMove struct
 #[derive(Debug, Clone)]
 struct ScoredMove {
@@ -107,6 +108,8 @@ impl PartialOrd for ScoredMove {
 pub struct Encoder {
     codebook: &'static Book<u32>,
     tree: &'static Tree<u32>,
+    buffer: BitVec,
+    board: Chess,
 }
 
 impl Default for Encoder {
@@ -118,44 +121,53 @@ impl Default for Encoder {
 impl Encoder {
     pub fn new() -> Self {
         let (codebook, tree) = get_huffman_code();
-        Encoder { codebook, tree }
-    }
-
-    pub fn encode(&self, pgn_moves: &[&str]) -> Result<BitVec, EncoderError> {
-        let mut buffer = BitVec::new();
-        let mut board = Chess::default();
-
-        for pgn_move in pgn_moves {
-            let san_plus: SanPlus = pgn_move
-                .parse::<SanPlus>()
-                .map_err(|e| EncoderError::SanParseError(e.to_string()))?;
-            let mv = san_plus
-                .san
-                .to_move(&board)
-                .map_err(|e| EncoderError::SanToMoveError(e.to_string()))?;
-
-            let legal_moves = board.legal_moves();
-            let mut scored_moves: Vec<ScoredMove> = legal_moves
-                .into_iter()
-                .map(|legal_mv| ScoredMove::new(&board, legal_mv))
-                .collect();
-            scored_moves.sort();
-
-            let index = scored_moves
-                .iter()
-                .position(|sm| sm.mv == mv)
-                .ok_or(EncoderError::MoveNotFound)? as u32;
-
-            self.codebook.encode(&mut buffer, &index)?;
-
-            board = board
-                .play(&mv)
-                .map_err(|e| EncoderError::PlayMoveError(e.to_string()))?;
+        Encoder {
+            codebook,
+            tree,
+            buffer: BitVec::new(),
+            board: Chess::default(),
         }
-
-        Ok(buffer)
     }
 
+    /// Encodes a single PGN move and updates the internal state.
+    pub fn encode_move(&mut self, pgn_move: &str) -> Result<(), EncoderError> {
+        let san_plus: SanPlus = pgn_move
+            .parse::<SanPlus>()
+            .map_err(|e| EncoderError::SanParseError(e.to_string()))?;
+        let mv = san_plus
+            .san
+            .to_move(&self.board)
+            .map_err(|e| EncoderError::SanToMoveError(e.to_string()))?;
+
+        let legal_moves = self.board.legal_moves();
+        let mut scored_moves: Vec<ScoredMove> = legal_moves
+            .into_iter()
+            .map(|legal_mv| ScoredMove::new(&self.board, legal_mv))
+            .collect();
+        scored_moves.sort();
+
+        let index = scored_moves
+            .iter()
+            .position(|sm| sm.mv == mv)
+            .ok_or(EncoderError::MoveNotFound)? as u32;
+
+        self.codebook.encode(&mut self.buffer, &index)?;
+
+        self.board = self
+            .board
+            .clone()
+            .play(&mv)
+            .map_err(|e| EncoderError::PlayMoveError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Returns the compressed data after all moves have been encoded.
+    pub fn finalize(&self) -> BitVec {
+        self.buffer.clone()
+    }
+
+    /// Decodes the compressed data into PGN moves.
     pub fn decode(&self, data: &BitVec, plies: usize) -> Result<Vec<String>, EncoderError> {
         let mut output = Vec::new();
         let mut board = Chess::default();
@@ -202,8 +214,11 @@ mod tests {
             "e4", "c5", "Nf3", "d6", "Bb5+", "Bd7", "Bxd7+", "Nxd7", "O-O", "Ngf6", "Re1", "e6",
         ];
 
-        let encoder = Encoder::new();
-        let compressed = encoder.encode(&pgn_moves)?;
+        let mut encoder = Encoder::new();
+        for mv in &pgn_moves {
+            encoder.encode_move(mv)?;
+        }
+        let compressed = encoder.finalize();
         let decoded_moves = encoder.decode(&compressed, pgn_moves.len())?;
 
         assert_eq!(pgn_moves, decoded_moves);
@@ -212,23 +227,32 @@ mod tests {
 
     #[test]
     fn test_invalid_san_parse() {
-        let encoder = Encoder::new();
-        let result = encoder.encode(&["e4", "invalid_move"]);
+        let mut encoder = Encoder::new();
+        let result = encoder.encode_move("invalid_move");
         assert!(matches!(result, Err(EncoderError::SanParseError(_))));
     }
 
     #[test]
     fn test_invalid_move() {
-        let encoder = Encoder::new();
-        let result = encoder.encode(&["e4", "e5", "a5", "h5", "Ra4"]); // Ra4 is invalid in this position
-        assert!(matches!(result, Err(EncoderError::SanToMoveError(_))));
+        let mut encoder = Encoder::new();
+        // "Ra4" is invalid in this position
+        let moves = vec!["e4", "e5", "a4", "h5", "Ra4"];
+        for mv in &moves {
+            let result = encoder.encode_move(mv);
+            if mv == &"Ra4" {
+                assert!(matches!(result, Err(EncoderError::SanToMoveError(_))));
+                break;
+            } else {
+                assert!(result.is_ok(), "{}", format!("Move {} should be valid", mv));
+            }
+        }
     }
 
     #[test]
     fn test_move_not_found() {
-        let _encoder = Encoder::new();
-        // This test is tricky to set up, as it would require manipulating internal state
-        // Instead, we'll test that MoveNotFound error is properly defined
+        // This test would require a situation where the move is legal but not found in the sorted list.
+        // Since our sorting is deterministic, this situation shouldn't occur in practice.
+        // We'll test that the MoveNotFound error is properly defined.
         assert!(matches!(
             EncoderError::MoveNotFound,
             EncoderError::MoveNotFound
@@ -237,11 +261,14 @@ mod tests {
 
     #[test]
     fn test_play_move_error() {
-        let encoder = Encoder::new();
-        let result = encoder.encode(&[
+        let mut encoder = Encoder::new();
+        let moves = vec![
             "e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "b5", "Bb3", "Na5",
-        ]); // This sequence should be valid
-        assert!(result.is_ok()); // We expect this to succeed now
+        ]; // This sequence should be valid
+        for mv in &moves {
+            let result = encoder.encode_move(mv);
+            assert!(result.is_ok()); // We expect this to succeed now
+        }
     }
 
     #[test]
@@ -256,7 +283,7 @@ mod tests {
     #[test]
     fn test_encode_empty_moves() -> Result<(), EncoderError> {
         let encoder = Encoder::new();
-        let compressed = encoder.encode(&[])?;
+        let compressed = encoder.finalize();
         assert!(compressed.is_empty());
         Ok(())
     }
@@ -287,15 +314,18 @@ mod tests {
             "Ba6", "Kd6",
         ];
 
-        let encoder = Encoder::new();
-        let compressed = encoder.encode(&pgn_moves)?;
+        let mut encoder = Encoder::new();
+        for mv in &pgn_moves {
+            encoder.encode_move(mv)?;
+        }
+        let compressed = encoder.finalize();
         let decoded_moves = encoder.decode(&compressed, pgn_moves.len())?;
 
         assert_eq!(pgn_moves, decoded_moves);
 
         // Optional: Print compression statistics
-        let original_size = pgn_moves.len() * 4; // Assuming average move length of 4 bytes
-        let compressed_size = compressed.len() / 8; // Convert bits to bytes
+        let original_size = pgn_moves.iter().map(|m| m.len()).sum::<usize>();
+        let compressed_size = (compressed.len() + 7) / 8; // Convert bits to bytes, rounding up
         println!("Original size: {} bytes", original_size);
         println!("Compressed size: {} bytes", compressed_size);
         println!(
