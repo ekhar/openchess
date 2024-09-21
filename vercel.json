@@ -1,0 +1,6 @@
+{
+  "name": "chess-project",
+  "framework": "nextjs",
+  "buildCommand": "cd web-app && npm run build",
+  "outputDirectory": "web-app/.next"
+}
