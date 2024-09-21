@@ -1,132 +1,104 @@
--- Enable UUID extension (if not already enabled)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- Create enum for game results
-CREATE TYPE game_result AS ENUM ('white_win', 'black_win', 'draw');
+CREATE TYPE game_result AS ENUM ('white', 'black', 'draw');
+CREATE TYPE site AS ENUM ('chesscom', 'lichess', 'custom');
+CREATE TYPE speed AS ENUM (
+    'ultraBullet',
+    'bullet',
+    'blitz',
+    'rapid',
+    'classical',
+    'correspondence'
+);
 
 -- Create positions table
 CREATE TABLE positions (
-    compressed_fen BYTEA PRIMARY KEY
+    id SERIAL PRIMARY KEY,
+    compressed_fen BYTEA UNIQUE
 );
 
--- Create position_stats table
-CREATE TABLE position_stats (
-    compressed_fen BYTEA PRIMARY KEY,
-    total_games INTEGER DEFAULT 0,
-    master_games INTEGER DEFAULT 0,
-    player_games INTEGER DEFAULT 0,
-    white_wins INTEGER DEFAULT 0,
-    black_wins INTEGER DEFAULT 0,
-    draws INTEGER DEFAULT 0,
-    FOREIGN KEY (compressed_fen) REFERENCES positions(compressed_fen)
-);
-
--- Create master_games table
+-- Master Games Table
 CREATE TABLE master_games (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
+    eco VARCHAR(3) NOT NULL,
     white_player TEXT NOT NULL,
     black_player TEXT NOT NULL,
     date DATE,
     result game_result NOT NULL,
     compressed_pgn BYTEA NOT NULL,
-    position_sequence BYTEA[] NOT NULL,
-    event TEXT,
-    site TEXT,
-    white_elo INTEGER,
-    black_elo INTEGER
+    position_sequence INTEGER[] NOT NULL, -- Changed from BYTEA[]
+    white_elo SMALLINT,
+    black_elo SMALLINT,
+    time_control speed 
 );
 
--- Create player_games table
+-- Player Games Table
 CREATE TABLE player_games (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
+    eco VARCHAR(3) NOT NULL,
     white_player TEXT NOT NULL,
     black_player TEXT NOT NULL,
     date DATE,
     result game_result NOT NULL,
     compressed_pgn BYTEA NOT NULL,
-    position_sequence BYTEA[] NOT NULL,
-    event TEXT,
-    site TEXT,
-    white_elo INTEGER,
-    black_elo INTEGER
+    position_sequence INTEGER[] NOT NULL, -- Changed from BYTEA[]
+    site site,
+    white_elo SMALLINT,
+    black_elo SMALLINT,
+    time_control speed 
 );
 
--- Create indexes
-CREATE INDEX idx_master_games_white_player ON master_games(white_player);
-CREATE INDEX idx_master_games_black_player ON master_games(black_player);
-CREATE INDEX idx_player_games_white_player ON player_games(white_player);
-CREATE INDEX idx_player_games_black_player ON player_games(black_player);
-CREATE INDEX idx_master_games_position_sequence ON master_games USING GIN(position_sequence);
-CREATE INDEX idx_player_games_position_sequence ON player_games USING GIN(position_sequence);
+-- Example for master_games
+ALTER TABLE master_games
+ADD CONSTRAINT fk_master_positions
+FOREIGN KEY (position_sequence)
+REFERENCES positions(id);
 
--- Function to update or insert position stats
-CREATE OR REPLACE FUNCTION upsert_position_stats(compressed_fen_param BYTEA, game_type TEXT, result_param game_result)
-RETURNS VOID AS $$
-BEGIN
-    -- Ensure the position exists in the positions table
-    INSERT INTO positions (compressed_fen)
-    VALUES (compressed_fen_param)
-    ON CONFLICT (compressed_fen) DO NOTHING;
+-- Example for player_games
+ALTER TABLE player_games
+ADD CONSTRAINT fk_player_positions
+FOREIGN KEY (position_sequence)
+REFERENCES positions(id);
 
-    -- Update or insert stats
-    INSERT INTO position_stats (compressed_fen, total_games, master_games, player_games, white_wins, black_wins, draws)
-    VALUES (
-        compressed_fen_param, 
-        1, 
-        (game_type = 'master')::INT, 
-        (game_type = 'player')::INT,
-        (result_param = 'white_win')::INT,
-        (result_param = 'black_win')::INT,
-        (result_param = 'draw')::INT
-    )
-    ON CONFLICT (compressed_fen) DO UPDATE
-    SET total_games = position_stats.total_games + 1,
-        master_games = position_stats.master_games + (game_type = 'master')::INT,
-        player_games = position_stats.player_games + (game_type = 'player')::INT,
-        white_wins = position_stats.white_wins + (result_param = 'white_win')::INT,
-        black_wins = position_stats.black_wins + (result_param = 'black_win')::INT,
-        draws = position_stats.draws + (result_param = 'draw')::INT;
-END;
-$$ LANGUAGE plpgsql;
+-- FEN
+CREATE INDEX idx_master_games_positions ON master_games USING GIN (position_sequence);
+CREATE INDEX idx_player_games_positions ON player_games USING GIN (position_sequence);
 
--- Function to update position stats for a game
-CREATE OR REPLACE FUNCTION update_game_position_stats(game_type TEXT, result_param game_result, position_sequence BYTEA[])
-RETURNS VOID AS $$
-DECLARE
-    compressed_fen BYTEA;
-BEGIN
-    FOREACH compressed_fen IN ARRAY position_sequence
-    LOOP
-        PERFORM upsert_position_stats(compressed_fen, game_type, result_param);
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
+CREATE INDEX idx_positions_hash ON positions USING hash (compressed_fen);
+CREATE INDEX idx_positions_gib ON positions USING GIN (compressed_fen);
 
--- Trigger function for master games
-CREATE OR REPLACE FUNCTION update_master_game_stats()
-RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM update_game_position_stats('master', NEW.result, NEW.position_sequence);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+--MASTER
+CREATE INDEX idx_master_games_white_elo_date ON master_games USING btree (date);
+CREATE INDEX idx_master_games_white_player ON master_games USING btree (white_player);
+CREATE INDEX idx_master_games_black_player ON master_games USING btree (black_player);
+CREATE INDEX idx_master_games_date ON master_games USING btree (date);
+CREATE INDEX idx_master_pgn ON master_games USING gin(compressed_pgn);
+CREATE INDEX idx_master_games_result ON master_games USING hash (result);
+CREATE INDEX idx_master_games_eco ON master_games USING btree (eco);
+CREATE INDEX idx_master_games_white_elo ON master_games USING btree (white_elo);
+CREATE INDEX idx_master_games_black_elo ON master_games USING btree (black_elo);
+CREATE INDEX idx_master_games_time_control ON master_games USING hash (time_control);
 
--- Trigger function for player games
-CREATE OR REPLACE FUNCTION update_player_game_stats()
-RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM update_game_position_stats('player', NEW.result, NEW.position_sequence);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+--PLAYER
+CREATE INDEX idx_player_pgn ON master_games USING gin(compressed_pgn);
 
--- Create triggers
-CREATE TRIGGER master_game_insert_trigger
-AFTER INSERT ON master_games
-FOR EACH ROW
-EXECUTE FUNCTION update_master_game_stats();
+CREATE INDEX idx_player_games_white_player ON player_games USING btree (white_player);
+CREATE INDEX idx_player_games_black_player ON player_games USING btree (black_player);
 
-CREATE TRIGGER player_game_insert_trigger
-AFTER INSERT ON player_games
-FOR EACH ROW
-EXECUTE FUNCTION update_player_game_stats();
+CREATE INDEX idx_player_games_white_date ON player_games USING btree (white_player, date);
+CREATE INDEX idx_player_games_black_date ON player_games USING btree (black_player, date);
+
+CREATE INDEX idx_player_games_white_result ON player_games USING btree (white_player, result);
+CREATE INDEX idx_player_games_black_result ON player_games USING btree (black_player, result);
+
+CREATE INDEX idx_player_games_white_white_elo ON player_games USING btree (white_player, white_elo);
+CREATE INDEX idx_player_games_black_black_elo ON player_games USING btree (black_player, black_elo);
+
+CREATE INDEX idx_player_games_white_time_control ON player_games USING btree (white_player, time_control);
+CREATE INDEX idx_player_games_black_time_control ON player_games USING btree (black_player, time_control);
+
+CREATE INDEX idx_player_games_white_site ON player_games USING btree (white_player, site);
+CREATE INDEX idx_player_games_black_site ON player_games USING btree (black_player, site);
+
+
+CREATE INDEX idx_player_games_white_site ON player_games USING btree (white_player, eco);
+CREATE INDEX idx_player_games_black_site ON player_games USING btree (black_player, eco);
