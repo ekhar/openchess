@@ -194,7 +194,9 @@ impl Visitor for Importer {
     }
 
     fn san(&mut self, san_plus: SanPlus) {
-        self.current_game.pgn_moves.push(san_plus.to_string());
+        if self.current_game.pgn_moves.len() < 51 {
+            self.current_game.pgn_moves.push(san_plus.to_string());
+        }
     }
 
     fn begin_variation(&mut self) -> Skip {
@@ -378,7 +380,7 @@ async fn process_batch(
     for (game_index, (_game, positions_in_game)) in game_data_list.into_iter().enumerate() {
         // Insert into master_games
         let row = sqlx::query!(
-            "INSERT INTO master_games 
+            "INSERT INTO master_games
             (eco, white_player, black_player, date, result, compressed_pgn, 
             white_elo, black_elo, time_control) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
@@ -423,28 +425,76 @@ async fn process_batch(
         }
     }
 
-    // Now, insert into master_game_positions
-    for positions_data in master_game_positions_inserts {
-        if positions_data.is_empty() {
-            continue;
+    let mut all_master_game_positions = Vec::new();
+    let mut master_games_inserts = master_games_inserts.into_iter().collect::<Vec<_>>();
+
+    if !master_games_inserts.is_empty() {
+        let mut query_builder = sqlx::QueryBuilder::new(
+            "INSERT INTO master_games
+            (eco, white_player, black_player, date, result, compressed_pgn, 
+            white_elo, black_elo, time_control) VALUES ",
+        );
+
+        query_builder.push_values(master_games_inserts.iter(), |mut b, game| {
+            b.push_bind(&game.0) // eco
+                .push_bind(&game.1) // white_player
+                .push_bind(&game.2) // black_player
+                .push_bind(&game.3) // date
+                .push_bind(&game.4) // result
+                .push_bind(&game.5) // compressed_pgn
+                .push_bind(&game.6) // white_elo
+                .push_bind(&game.7) // black_elo
+                .push_bind(&game.8); // time_control
+        });
+
+        query_builder.push(" ON CONFLICT DO NOTHING RETURNING id");
+
+        let rows = query_builder.build().fetch_all(&mut tx).await?;
+
+        // Ensure that the number of returned ids matches the number of inserted games
+        if rows.len() != master_games_inserts.len() {
+            eprintln!(
+                "Mismatch in inserted master_games: expected {}, got {}",
+                master_games_inserts.len(),
+                rows.len()
+            );
         }
 
+        // Collect all game_ids
+        let game_ids: Vec<i32> = rows.into_iter().map(|row| row.id).collect();
+
+        // Map game_ids to their respective positions
+        for (game_index, game_id) in game_ids.iter().enumerate() {
+            let positions_in_game = &game_data_list[game_index].1;
+            for (compressed_fen, move_number) in positions_in_game {
+                let mut data = Vec::new();
+                compressed_fen.write_to_big_endian(&mut data);
+                let position_id = {
+                    let positions_cache_lock = positions_cache.lock().await;
+                    *positions_cache_lock.get(&data).unwrap()
+                };
+                all_master_game_positions.push((*game_id, position_id, *move_number as i32));
+            }
+        }
+    }
+
+    // Bulk insert into master_game_positions
+    if !all_master_game_positions.is_empty() {
         let mut query_builder = sqlx::QueryBuilder::new(
-            "INSERT INTO master_game_positions (game_id, position_id, move_number)",
+            "INSERT INTO master_game_positions (game_id, position_id, move_number) ",
         );
         query_builder.push_values(
-            positions_data.iter(),
+            all_master_game_positions.iter(),
             |mut b, (game_id, position_id, move_number)| {
-                b.push_bind(*game_id)
-                    .push_bind(*position_id)
-                    .push_bind(*move_number);
+                b.push_bind(game_id)
+                    .push_bind(position_id)
+                    .push_bind(move_number);
             },
         );
-
         query_builder.push(" ON CONFLICT DO NOTHING");
 
-        // Execute the query and check affected rows
-        let result = query_builder.build().execute(pool).await?;
+        let result = query_builder.build().execute(&mut tx).await?;
+
         // Update insert counter
         let mut counter = insert_counter.lock().await;
         *counter += result.rows_affected() as usize;
@@ -454,6 +504,10 @@ async fn process_batch(
             println!("Processed {} inserts", *counter);
         }
     }
+
+    // Commit the transaction
+    tx.commit().await?;
+
     println!("Done with master_game_positions");
 
     Ok(())
@@ -473,12 +527,12 @@ async fn main() -> Result<(), ImportError> {
     dotenv().ok();
     let supa_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
-        .max_connections(11)
+        .max_connections(30)
         .connect(&supa_url)
         .await?;
 
     // Create the mpsc channel
-    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(1000);
+    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(30);
 
     // Positions cache shared between batches
     let positions_cache = Arc::new(Mutex::new(HashMap::new()));
@@ -521,7 +575,7 @@ async fn main() -> Result<(), ImportError> {
 
         let mut importer = Importer {
             tx: tx.clone(),
-            batch_size: 2000,
+            batch_size: 500,
             current_game: Game::default(),
             skip: false,
             batch_games: Vec::new(),

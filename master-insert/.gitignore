@@ -1,2 +1,4 @@
 target/
 src/pgns/*.pgn
+*.csv
+pgn-extract/
