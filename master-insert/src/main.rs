@@ -133,33 +133,36 @@ impl Visitor for Importer {
     fn header(&mut self, key: &[u8], value: RawHeader<'_>) {
         match key {
             b"White" => {
-                self.current_game.white_player = value.decode_utf8().unwrap().into_owned();
+                self.current_game.white_player =
+                    value.decode_utf8().unwrap_or_default().into_owned();
             }
             b"Black" => {
-                self.current_game.black_player = value.decode_utf8().unwrap().into_owned();
+                self.current_game.black_player =
+                    value.decode_utf8().unwrap_or_default().into_owned();
             }
             b"WhiteElo" => {
-                if value.as_bytes() != b"?" {
-                    self.current_game.white_elo = btoi::btoi(value.as_bytes()).unwrap_or(0);
+                self.current_game.white_elo = if value.as_bytes() != b"?" {
+                    btoi::btoi(value.as_bytes()).unwrap_or(0)
                 } else {
-                    self.current_game.white_elo = 0;
-                }
+                    0
+                };
             }
             b"BlackElo" => {
-                if value.as_bytes() != b"?" {
-                    self.current_game.black_elo = btoi::btoi(value.as_bytes()).unwrap_or(0);
+                self.current_game.black_elo = if value.as_bytes() != b"?" {
+                    btoi::btoi(value.as_bytes()).unwrap_or(0)
                 } else {
-                    self.current_game.black_elo = 0;
-                }
+                    0
+                };
             }
             b"Date" => {
-                let date_str = value.decode_utf8().unwrap().into_owned();
-                if let Ok(date) = NaiveDate::parse_from_str(&date_str, "%Y.%m.%d") {
-                    self.current_game.date = Some(date);
+                if let Ok(date_str) = value.decode_utf8() {
+                    if let Ok(date) = NaiveDate::parse_from_str(&date_str, "%Y.%m.%d") {
+                        self.current_game.date = Some(date);
+                    }
                 }
             }
             b"Result" => {
-                let result_str = value.decode_utf8().unwrap().into_owned();
+                let result_str = value.decode_utf8().unwrap_or_default().into_owned();
                 self.current_game.result = match result_str.as_str() {
                     "1-0" => "white".to_string(),
                     "0-1" => "black".to_string(),
@@ -171,13 +174,13 @@ impl Visitor for Importer {
                 };
             }
             b"ECO" => {
-                self.current_game.eco = value.decode_utf8().unwrap().into_owned();
+                self.current_game.eco = value.decode_utf8().unwrap_or_default().into_owned();
             }
             b"TimeControl" => {
                 Speed::from_bytes(value.as_bytes()).expect("TimeControl");
             }
             b"FEN" => {
-                self.current_game.fen = Some(value.decode_utf8().unwrap().into_owned());
+                self.current_game.fen = value.decode_utf8().ok().map(|s| s.into_owned());
             }
             _ => {}
         }
@@ -191,7 +194,7 @@ impl Visitor for Importer {
     }
 
     fn san(&mut self, san_plus: SanPlus) {
-        self.current_game.pgn_moves.push(format!("{}", san_plus));
+        self.current_game.pgn_moves.push(san_plus.to_string());
     }
 
     fn begin_variation(&mut self) -> Skip {
@@ -243,7 +246,7 @@ async fn process_batch(
                     Err(_) => {
                         println!(
                             "Error creating position from FEN for game ID: {}. Skipping.",
-                            game.fen.unwrap()
+                            game.fen.unwrap_or_default()
                         );
                         continue; // Skip to the next iteration
                     }
@@ -251,7 +254,7 @@ async fn process_batch(
                 Err(_) => {
                     println!(
                         "Error parsing FEN for game ID: {}. Skipping.",
-                        game.fen.unwrap()
+                        game.fen.unwrap_or_default()
                     );
                     continue; // Skip to the next iteration
                 }
@@ -270,10 +273,10 @@ async fn process_batch(
             let mv = san_plus.san.to_move(&position).unwrap();
 
             // Encode the move
-            encoder.encode_move(san_str).unwrap();
+            encoder.encode_move(san_str).unwrap_or_default();
 
             // Play the move
-            position = position.play(&mv).unwrap();
+            position = position.play(&mv).unwrap_or_default();
 
             let compressed_fen = compression::fen_compress::CompressedPosition::compress(&position);
 
@@ -470,12 +473,12 @@ async fn main() -> Result<(), ImportError> {
     dotenv().ok();
     let supa_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(11)
         .connect(&supa_url)
         .await?;
 
     // Create the mpsc channel
-    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(10);
+    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(1000);
 
     // Positions cache shared between batches
     let positions_cache = Arc::new(Mutex::new(HashMap::new()));
@@ -518,7 +521,7 @@ async fn main() -> Result<(), ImportError> {
 
         let mut importer = Importer {
             tx: tx.clone(),
-            batch_size: 100,
+            batch_size: 2000,
             current_game: Game::default(),
             skip: false,
             batch_games: Vec::new(),
