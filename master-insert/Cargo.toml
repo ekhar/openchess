@@ -33,4 +33,5 @@ sqlx = { version = "0.8", features = [
   "runtime-tokio",
   "tls-native-tls",
   "postgres",
+  "chrono",
 ] }

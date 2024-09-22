@@ -20,9 +20,9 @@ pub enum CompressedPositionError {
     PositionConversionError(#[from] shakmaty::PositionError<Chess>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct CompressedPosition {
-    occupied: Bitboard,
-    packed_state: Vec<u8>,
+pub struct CompressedPosition {
+    pub occupied: Bitboard,
+    pub packed_state: Vec<u8>,
 }
 
 impl CompressedPosition {
@@ -58,7 +58,7 @@ impl CompressedPosition {
     // Let N be the number of bits set in occupied bitboard.
     // Only N nibbles are present. (N+1)/2 bytes are initialized.
 
-    fn compress(position: &Chess) -> CompressedPosition {
+    pub fn compress(position: &Chess) -> CompressedPosition {
         let board = position.board();
         let occupied_bitboard = board.occupied();
 
@@ -191,7 +191,7 @@ impl CompressedPosition {
         }
     }
 
-    fn decompress(&self) -> Result<Chess, CompressedPositionError> {
+    pub fn decompress(&self) -> Result<Chess, CompressedPositionError> {
         use shakmaty::fen::Fen;
         use std::collections::HashMap;
         use std::fmt::Write;
@@ -353,7 +353,9 @@ impl CompressedPosition {
         Ok(position)
     }
 
-    fn read_from_big_endian(data: &[u8]) -> Result<CompressedPosition, CompressedPositionError> {
+    pub fn read_from_big_endian(
+        data: &[u8],
+    ) -> Result<CompressedPosition, CompressedPositionError> {
         if data.len() < 8 {
             return Err(CompressedPositionError::InsufficientDataForBitboard);
         }
@@ -379,7 +381,7 @@ impl CompressedPosition {
         })
     }
 
-    fn write_to_big_endian(&self, data: &mut Vec<u8>) {
+    pub fn write_to_big_endian(&self, data: &mut Vec<u8>) {
         // Write the occupied bitboard
         data.extend_from_slice(&self.occupied.0.to_be_bytes());
 

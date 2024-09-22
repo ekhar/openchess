@@ -1,5 +1,4 @@
--- Create enum for game results
-CREATE EXTENSION IF NOT EXISTS pg_trgm 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE TYPE game_result AS ENUM ('white', 'black', 'draw');
 CREATE TYPE site AS ENUM ('chesscom', 'lichess', 'custom');
 CREATE TYPE speed AS ENUM (
@@ -67,22 +66,18 @@ CREATE INDEX idx_player_game_positions_game ON player_game_positions (game_id);
 
 
 --FEN find exact and fuzzy matches
-CREATE INDEX idx_positions_hash ON positions USING hash (compressed_fen);
-CREATE INDEX idx_positions_gib ON positions USING GIN (compressed_fen gin_trgm_ops);
+CREATE INDEX idx_positions_hash ON positions (compressed_fen);
 
 --MASTER
 CREATE INDEX idx_master_games_white_player ON master_games USING btree (white_player);
 CREATE INDEX idx_master_games_black_player ON master_games USING btree (black_player);
-CREATE INDEX idx_master_pgn ON master_games USING GIN (compressed_pgn gin_trgm_ops);
-CREATE INDEX idx_master_games_result ON master_games USING hash (result);
+CREATE INDEX idx_master_games_result ON master_games USING btree (result);
 CREATE INDEX idx_master_games_eco ON master_games USING btree (eco);
 CREATE INDEX idx_master_games_white_elo ON master_games USING btree (white_elo);
 CREATE INDEX idx_master_games_black_elo ON master_games USING btree (black_elo);
-CREATE INDEX idx_master_games_time_control ON master_games USING hash (time_control);
+CREATE INDEX idx_master_games_time_control ON master_games USING btree (time_control);
 
 --PLAYER
-CREATE INDEX idx_player_pgn ON master_games USING GIN (compressed_pgn gin_trgm_ops);
-
 CREATE INDEX idx_player_games_white_player ON player_games USING btree (white_player);
 CREATE INDEX idx_player_games_black_player ON player_games USING btree (black_player);
 
