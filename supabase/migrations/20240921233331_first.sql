@@ -27,7 +27,8 @@ CREATE TABLE master_games (
     compressed_pgn BYTEA NOT NULL,
     white_elo SMALLINT NOT NULL,
     black_elo SMALLINT NOT NULL,
-    time_control speed 
+    time_control speed,
+    UNIQUE(compressed_pgn, white_player, black_player, date)
 );
 
 CREATE TABLE master_game_positions (
@@ -51,7 +52,8 @@ CREATE TABLE player_games (
     site site,
     white_elo SMALLINT NOT NULL,
     black_elo SMALLINT NOT NULL,
-    time_control speed 
+    time_control speed,
+    UNIQUE(compressed_pgn, white_player, black_player, date)
 );
 
 CREATE TABLE player_game_positions (

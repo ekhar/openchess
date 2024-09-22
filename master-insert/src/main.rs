@@ -24,6 +24,19 @@ struct Importer {
     skip: bool,
     batch_games: Vec<Game>,
 }
+impl Importer {
+    // New method to send a batch
+    fn send_batch(&mut self) {
+        println!("Sending batch of size {}", self.batch_games.len());
+        if !self.batch_games.is_empty() {
+            let batch =
+                std::mem::replace(&mut self.batch_games, Vec::with_capacity(self.batch_size));
+            if let Err(e) = self.tx.send(batch) {
+                println!("Failed to send batch: {:?}", e);
+            }
+        }
+    }
+}
 #[derive(Debug, Copy, Clone, sqlx::Type)]
 #[sqlx(type_name = "game_result", rename_all = "lowercase")]
 pub enum GameResult {
@@ -191,13 +204,7 @@ impl Visitor for Importer {
         }
 
         if self.batch_games.len() >= self.batch_size {
-            let batch =
-                std::mem::replace(&mut self.batch_games, Vec::with_capacity(self.batch_size));
-
-            // Use Crossbeam's send (blocks if the channel is full)
-            if let Err(e) = self.tx.send(batch) {
-                println!("Failed to send batch: {:?}", e);
-            }
+            self.send_batch();
         }
     }
 }
@@ -208,72 +215,6 @@ enum ImportError {
     IoError(#[from] std::io::Error),
     #[error("SQLx error")]
     SqlxError(#[from] sqlx::Error),
-}
-
-#[tokio::main]
-async fn main() -> Result<(), ImportError> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        std::process::exit(1);
-    }
-
-    let file_path = &args[1];
-
-    // Set up the database connection
-    dotenv().ok();
-    let supa_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&supa_url)
-        .await?;
-
-    // Create the mpsc channel
-    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(10);
-
-    // Positions cache shared between batches
-    let positions_cache = Arc::new(Mutex::new(HashMap::new()));
-
-    // Spawn the async task to process batches
-    let pool_clone = pool.clone();
-    let positions_cache_clone = positions_cache.clone();
-    let bg = std::thread::spawn(move || {
-        // Create a Tokio runtime within the thread
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-
-        // Continuously receive batches and process them
-        for batch in rx.iter() {
-            let pool = pool_clone.clone();
-            let positions_cache = positions_cache_clone.clone();
-
-            // Spawn a Tokio task for each batch
-            rt.spawn(async move {
-                if let Err(e) = process_batch(&pool, positions_cache, batch).await {
-                    eprintln!("Error processing batch: {:?}", e);
-                }
-            });
-        }
-    });
-
-    let file = File::open(file_path)?;
-    //drop the extra threads by doing this in its own lifetime
-    let mut reader = BufferedReader::new(BufReader::new(file));
-    // Create the importer
-    let mut importer = Importer {
-        tx: tx.clone(),
-        batch_size: 100,
-        current_game: Game::default(),
-        skip: false,
-        batch_games: Vec::new(),
-    };
-    reader.read_all(&mut importer)?;
-    // Read the PGN file
-
-    // Read all games
-
-    drop(tx);
-    bg.join().expect("Processing thread panicked");
-
-    Ok(())
 }
 
 async fn process_batch(
@@ -406,6 +347,9 @@ async fn process_batch(
             query_builder.push_values(compressed_fens_not_in_db.iter(), |mut b, cf| {
                 b.push_bind(cf);
             });
+
+            query_builder.push(" ON CONFLICT DO NOTHING");
+
             query_builder.push(" RETURNING id, compressed_fen");
 
             // Execute the query and get the ids
@@ -430,9 +374,11 @@ async fn process_batch(
     for (game_index, (_game, positions_in_game)) in game_data_list.into_iter().enumerate() {
         // Insert into master_games
         let row = sqlx::query!(
-            "INSERT INTO master_games
-            (eco, white_player, black_player, date, result, compressed_pgn, white_elo, black_elo, time_control)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            "INSERT INTO master_games 
+            (eco, white_player, black_player, date, result, compressed_pgn, 
+            white_elo, black_elo, time_control) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+            ON CONFLICT DO NOTHING 
             RETURNING id",
             &master_games_inserts[game_index].0,
             &master_games_inserts[game_index].1,
@@ -442,28 +388,35 @@ async fn process_batch(
             master_games_inserts[game_index].5,
             master_games_inserts[game_index].6,
             master_games_inserts[game_index].7,
-            master_games_inserts[game_index].8 as Option<Speed>  // Assuming Speed implements sqlx::Type
+            master_games_inserts[game_index].8 as Option<Speed>
         )
-        .fetch_one(pool)
+        .fetch_optional(pool)
         .await?;
 
-        let game_id = row.id;
-        game_ids.push(game_id);
+        match row {
+            Some(row) => {
+                let game_id = row.id;
+                game_ids.push(game_id);
 
-        // Prepare data for master_game_positions
-        let mut positions_data = Vec::new();
+                // Prepare data for master_game_positions
+                let mut positions_data = Vec::new();
 
-        for (compressed_fen, move_number) in positions_in_game {
-            let mut data = Vec::new();
-            compressed_fen.write_to_big_endian(&mut data);
-            let position_id = {
-                let positions_cache_lock = positions_cache.lock().await;
-                *positions_cache_lock.get(&data).unwrap()
-            };
-            positions_data.push((game_id, position_id, move_number as i32));
+                for (compressed_fen, move_number) in positions_in_game {
+                    let mut data = Vec::new();
+                    compressed_fen.write_to_big_endian(&mut data);
+                    let position_id = {
+                        let positions_cache_lock = positions_cache.lock().await;
+                        *positions_cache_lock.get(&data).unwrap()
+                    };
+                    positions_data.push((game_id, position_id, move_number as i32));
+                }
+
+                master_game_positions_inserts.push(positions_data);
+            }
+            None => {
+                // You might want to log this or handle it in some way
+            }
         }
-
-        master_game_positions_inserts.push(positions_data);
     }
 
     // Now, insert into master_game_positions
@@ -484,9 +437,94 @@ async fn process_batch(
             },
         );
 
-        // Execute the query
-        query_builder.build().execute(pool).await?;
+        query_builder.push(" ON CONFLICT DO NOTHING");
+
+        // Execute the query and check affected rows
+        let _result = query_builder.build().execute(pool).await?;
     }
+    println!("Done with master_game_positions");
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), ImportError> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        std::process::exit(1);
+    }
+
+    let file_path = &args[1];
+
+    // Set up the database connection
+    dotenv().ok();
+    let supa_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&supa_url)
+        .await?;
+
+    // Create the mpsc channel
+    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(10);
+
+    // Positions cache shared between batches
+    let positions_cache = Arc::new(Mutex::new(HashMap::new()));
+
+    // Spawn the async task to process batches
+    let pool_clone = pool.clone();
+    let positions_cache_clone = positions_cache.clone();
+    println!("Making a thread");
+
+    let bg = std::thread::spawn(move || {
+        // Create a Tokio runtime within the thread
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+
+        // Define an asynchronous block to process batches sequentially
+        let process_batches = async {
+            for batch in rx.iter() {
+                let pool = pool_clone.clone();
+                let positions_cache = positions_cache_clone.clone();
+
+                // Directly await the processing of each batch
+                if let Err(e) = process_batch(&pool, positions_cache, batch).await {
+                    eprintln!("Error processing batch: {:?}", e);
+                } else {
+                    println!("Processed batch successfully");
+                }
+            }
+        };
+
+        // Run the asynchronous block within the Tokio runtime
+        rt.block_on(process_batches);
+
+        // This will only print after all batches have been processed
+        println!("Done with the thread");
+    });
+
+    // Create the importer
+    {
+        println!("making an importer");
+        let file = File::open(file_path)?;
+        let mut reader = BufferedReader::new(BufReader::new(file));
+
+        let mut importer = Importer {
+            tx: tx.clone(),
+            batch_size: 100,
+            current_game: Game::default(),
+            skip: false,
+            batch_games: Vec::new(),
+        };
+        println!("done with importer");
+        reader.read_all(&mut importer)?;
+        importer.send_batch();
+        println!(" hey ");
+        // Importer goes out of scope and is dropped here
+    }
+    drop(tx);
+
+    println!(" hey ! ");
+    bg.join().expect("Processing thread panicked");
+    println!(" bye !! ");
 
     Ok(())
 }
