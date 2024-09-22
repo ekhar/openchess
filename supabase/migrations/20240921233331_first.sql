@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE TYPE game_result AS ENUM ('white', 'black', 'draw');
 CREATE TYPE site AS ENUM ('chesscom', 'lichess', 'custom');
 CREATE TYPE speed AS ENUM (
-    'ultraBullet',
+    'ultrabullet',
     'bullet',
     'blitz',
     'rapid',

@@ -1,13 +1,14 @@
 // main.rs
-
-use pgn_reader::{BufferedReader, Color, Outcome, RawHeader, SanPlus, Skip, Visitor};
-use shakmaty::{fen::Fen, san::San, CastlingMode, Chess, Move, Position};
+use dotenv::dotenv;
+use pgn_reader::{BufferedReader, RawHeader, SanPlus, Skip, Visitor};
+use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::types::chrono::NaiveDate;
 use sqlx::Row;
 use std::collections::{HashMap, HashSet};
+use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{mpsc, Mutex};
@@ -21,10 +22,10 @@ struct Importer {
     current_game: Game,
     skip: bool,
     batch_games: Vec<Game>,
-    total_games: usize,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, sqlx::Type)]
+#[sqlx(type_name = "mood", rename_all = "lowercase")]
 enum Speed {
     UltraBullet,
     Bullet,
@@ -143,7 +144,7 @@ impl Visitor for Importer {
                 self.current_game.eco = value.decode_utf8().unwrap().into_owned();
             }
             b"TimeControl" => {
-                Some(Speed::from_bytes(value.as_bytes()).expect("TimeControl"));
+                Speed::from_bytes(value.as_bytes()).expect("TimeControl");
             }
             b"FEN" => {
                 self.current_game.fen = Some(value.decode_utf8().unwrap().into_owned());
@@ -173,7 +174,7 @@ impl Visitor for Importer {
         }
 
         if self.batch_games.len() >= self.batch_size {
-            let batch = std::mem::replace(&mut self.batch_games, Vec::new());
+            let batch = std::mem::take(&mut self.batch_games);
             let _ = self.tx.blocking_send(batch);
         }
     }
@@ -185,16 +186,23 @@ enum ImportError {
     IoError(#[from] std::io::Error),
     #[error("SQLx error")]
     SqlxError(#[from] sqlx::Error),
-    #[error("PGN parse error")]
-    PgnParseError,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), ImportError> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: {} <file_path>", args[0]);
+        std::process::exit(1);
+    }
+
+    let file_path = &args[1];
     // Set up the database connection
+    dotenv().ok();
+    let supa_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+        .connect(&supa_url)
         .await?;
 
     // Create the mpsc channel
@@ -221,11 +229,10 @@ async fn main() -> Result<(), ImportError> {
         current_game: Game::default(),
         skip: false,
         batch_games: Vec::new(),
-        total_games: 0,
     };
 
     // Read the PGN file
-    let file = File::open("./")?;
+    let file = File::open(file_path)?;
     let mut reader = BufferedReader::new(BufReader::new(file));
 
     // Read all games
@@ -233,7 +240,7 @@ async fn main() -> Result<(), ImportError> {
 
     // After reading all games, send any remaining batch
     if !importer.batch_games.is_empty() {
-        let batch = std::mem::replace(&mut importer.batch_games, Vec::new());
+        let batch = std::mem::take(&mut importer.batch_games);
         importer.tx.send(batch).await.unwrap();
     }
 
@@ -258,7 +265,7 @@ async fn process_batch(
     // First pass: collect compressed_fens and positions_in_game
     for game in batch_games {
         // Initialize the position
-        let position = if let Some(fen) = &game.fen {
+        let mut position = if let Some(fen) = &game.fen {
             match Fen::from_ascii(fen.as_bytes()) {
                 Ok(fen) => match fen.into_position(CastlingMode::Standard) {
                     Ok(pos) => pos,
@@ -297,9 +304,6 @@ async fn process_batch(
             // Play the move
             position = position.play(&mv).unwrap();
 
-            // Compress the position
-            let compressed_position = encoder.finalize();
-
             let compressed_fen = compression::fen_compress::CompressedPosition::compress(&position);
 
             let mut data = Vec::new();
@@ -320,10 +324,10 @@ async fn process_batch(
             game.black_player.clone(),
             game.date,
             game.result.clone(),
-            compressed_pgn,
+            compressed_pgn_bytes,
             game.white_elo,
             game.black_elo,
-            game.time_control.clone(),
+            game.time_control,
         ));
 
         game_data_list.push((game, positions_in_game));
@@ -354,7 +358,7 @@ async fn process_batch(
         // Update positions_cache with the found positions
         for row in rows {
             let id: i32 = row.id;
-            let compressed_fen: Vec<u8> = row.compressed_fen;
+            let compressed_fen: Vec<u8> = row.compressed_fen.unwrap_or_default();
             positions_cache_lock.insert(compressed_fen.clone(), id);
             positions_map.insert(compressed_fen, id);
         }
@@ -393,7 +397,7 @@ async fn process_batch(
     let mut master_game_positions_inserts = Vec::new();
     let mut game_ids = Vec::new();
 
-    for (game_index, (game, positions_in_game)) in game_data_list.into_iter().enumerate() {
+    for (game_index, (_game, positions_in_game)) in game_data_list.into_iter().enumerate() {
         // Insert into master_games
         let row: (i32,) = sqlx::query_as(
             "INSERT INTO master_games
@@ -404,12 +408,12 @@ async fn process_batch(
         .bind(&master_games_inserts[game_index].0)
         .bind(&master_games_inserts[game_index].1)
         .bind(&master_games_inserts[game_index].2)
-        .bind(&master_games_inserts[game_index].3)
+        .bind(master_games_inserts[game_index].3)
         .bind(&master_games_inserts[game_index].4)
         .bind(&master_games_inserts[game_index].5)
-        .bind(&master_games_inserts[game_index].6)
-        .bind(&master_games_inserts[game_index].7)
-        .bind(&master_games_inserts[game_index].8)
+        .bind(master_games_inserts[game_index].6)
+        .bind(master_games_inserts[game_index].7)
+        .bind(master_games_inserts[game_index].8)
         .fetch_one(pool)
         .await?;
 
@@ -421,7 +425,7 @@ async fn process_batch(
 
         for (compressed_fen, move_number) in positions_in_game {
             let mut data = Vec::new();
-            &compressed_fen.write_to_big_endian(&mut data);
+            compressed_fen.write_to_big_endian(&mut data);
             let position_id = {
                 let positions_cache_lock = positions_cache.lock().await;
                 *positions_cache_lock.get(&data).unwrap()
