@@ -1,5 +1,5 @@
 // main.rs
-use crossbeam::channel::{bounded, Receiver, Sender};
+use crossbeam::channel::Sender;
 use dotenv::dotenv;
 use pgn_reader::{BufferedReader, RawHeader, SanPlus, Skip, Visitor};
 use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
@@ -221,6 +221,7 @@ async fn process_batch(
     pool: &sqlx::Pool<sqlx::Postgres>,
     positions_cache: Arc<Mutex<HashMap<Vec<u8>, i32>>>,
     batch_games: Vec<Game>,
+    insert_counter: Arc<Mutex<usize>>,
 ) -> Result<(), sqlx::Error> {
     // Collect all unique compressed_fens across all games
     let mut compressed_fens_set: HashSet<Vec<u8>> = HashSet::new();
@@ -440,7 +441,15 @@ async fn process_batch(
         query_builder.push(" ON CONFLICT DO NOTHING");
 
         // Execute the query and check affected rows
-        let _result = query_builder.build().execute(pool).await?;
+        let result = query_builder.build().execute(pool).await?;
+        // Update insert counter
+        let mut counter = insert_counter.lock().await;
+        *counter += result.rows_affected() as usize;
+
+        // Print progress every 20,000 inserts
+        if *counter % 20000 == 0 {
+            println!("Processed {} inserts", *counter);
+        }
     }
     println!("Done with master_game_positions");
 
@@ -453,6 +462,7 @@ async fn main() -> Result<(), ImportError> {
     if args.len() < 2 {
         std::process::exit(1);
     }
+    let insert_counter = Arc::new(Mutex::new(0));
 
     let file_path = &args[1];
 
@@ -473,7 +483,7 @@ async fn main() -> Result<(), ImportError> {
     // Spawn the async task to process batches
     let pool_clone = pool.clone();
     let positions_cache_clone = positions_cache.clone();
-    println!("Making a thread");
+    let insert_counter_clone = insert_counter.clone();
 
     let bg = std::thread::spawn(move || {
         // Create a Tokio runtime within the thread
@@ -484,9 +494,9 @@ async fn main() -> Result<(), ImportError> {
             for batch in rx.iter() {
                 let pool = pool_clone.clone();
                 let positions_cache = positions_cache_clone.clone();
-
+                let insert_counter = insert_counter_clone.clone();
                 // Directly await the processing of each batch
-                if let Err(e) = process_batch(&pool, positions_cache, batch).await {
+                if let Err(e) = process_batch(&pool, positions_cache, batch, insert_counter).await {
                     eprintln!("Error processing batch: {:?}", e);
                 } else {
                     println!("Processed batch successfully");
@@ -503,7 +513,6 @@ async fn main() -> Result<(), ImportError> {
 
     // Create the importer
     {
-        println!("making an importer");
         let file = File::open(file_path)?;
         let mut reader = BufferedReader::new(BufReader::new(file));
 
@@ -522,9 +531,7 @@ async fn main() -> Result<(), ImportError> {
     }
     drop(tx);
 
-    println!(" hey ! ");
     bg.join().expect("Processing thread panicked");
-    println!(" bye !! ");
 
     Ok(())
 }
