@@ -1,5 +1,5 @@
 [package]
-name = "fen_compression"
+name = "master-import"
 version = "0.1.0"
 edition = "2021"
 

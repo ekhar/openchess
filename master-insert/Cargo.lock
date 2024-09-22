@@ -786,33 +786,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
 
 [[package]]
-name = "fen_compression"
-version = "0.1.0"
-dependencies = [
- "actix",
- "actix-cors",
- "actix-rt",
- "actix-web",
- "bit-vec",
- "btoi",
- "chrono",
- "crossbeam",
- "dotenv",
- "huffman-compress",
- "pgn-reader",
- "reqwest",
- "serde",
- "serde_json",
- "serde_with",
- "shakmaty",
- "sqlx",
- "thiserror",
- "time",
- "tokio",
- "zstd",
-]
-
-[[package]]
 name = "flate2"
 version = "1.0.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1383,6 +1356,33 @@ name = "log"
 version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+
+[[package]]
+name = "master-import"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "actix-cors",
+ "actix-rt",
+ "actix-web",
+ "bit-vec",
+ "btoi",
+ "chrono",
+ "crossbeam",
+ "dotenv",
+ "huffman-compress",
+ "pgn-reader",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "shakmaty",
+ "sqlx",
+ "thiserror",
+ "time",
+ "tokio",
+ "zstd",
+]
 
 [[package]]
 name = "md-5"

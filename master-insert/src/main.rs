@@ -1,4 +1,5 @@
 // main.rs
+use crossbeam::channel::{bounded, Receiver, Sender};
 use dotenv::dotenv;
 use pgn_reader::{BufferedReader, RawHeader, SanPlus, Skip, Visitor};
 use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
@@ -11,21 +12,37 @@ use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 
 mod compression; // Include your helper functions here
 
 #[derive(Debug)]
 struct Importer {
-    tx: mpsc::Sender<Vec<Game>>,
+    tx: Sender<Vec<Game>>,
     batch_size: usize,
     current_game: Game,
     skip: bool,
     batch_games: Vec<Game>,
 }
-
 #[derive(Debug, Copy, Clone, sqlx::Type)]
-#[sqlx(type_name = "mood", rename_all = "lowercase")]
+#[sqlx(type_name = "game_result", rename_all = "lowercase")]
+pub enum GameResult {
+    White,
+    Black,
+    Draw,
+}
+impl GameResult {
+    fn from_str(s: &str) -> Self {
+        match s {
+            "white" => GameResult::White,
+            "black" => GameResult::Black,
+            "draw" => GameResult::Draw,
+            _ => panic!("Invalid game result: {}", s), // Or handle this error as appropriate for your application
+        }
+    }
+}
+#[derive(Debug, Copy, Clone, sqlx::Type)]
+#[sqlx(type_name = "speed", rename_all = "lowercase")]
 enum Speed {
     UltraBullet,
     Bullet,
@@ -174,8 +191,13 @@ impl Visitor for Importer {
         }
 
         if self.batch_games.len() >= self.batch_size {
-            let batch = std::mem::take(&mut self.batch_games);
-            let _ = self.tx.blocking_send(batch);
+            let batch =
+                std::mem::replace(&mut self.batch_games, Vec::with_capacity(self.batch_size));
+
+            // Use Crossbeam's send (blocks if the channel is full)
+            if let Err(e) = self.tx.send(batch) {
+                println!("Failed to send batch: {:?}", e);
+            }
         }
     }
 }
@@ -192,11 +214,11 @@ enum ImportError {
 async fn main() -> Result<(), ImportError> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: {} <file_path>", args[0]);
         std::process::exit(1);
     }
 
     let file_path = &args[1];
+
     // Set up the database connection
     dotenv().ok();
     let supa_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -206,7 +228,7 @@ async fn main() -> Result<(), ImportError> {
         .await?;
 
     // Create the mpsc channel
-    let (tx, mut rx) = mpsc::channel::<Vec<Game>>(10);
+    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(10);
 
     // Positions cache shared between batches
     let positions_cache = Arc::new(Mutex::new(HashMap::new()));
@@ -214,35 +236,42 @@ async fn main() -> Result<(), ImportError> {
     // Spawn the async task to process batches
     let pool_clone = pool.clone();
     let positions_cache_clone = positions_cache.clone();
-    tokio::spawn(async move {
-        while let Some(batch) = rx.recv().await {
-            if let Err(e) = process_batch(&pool_clone, positions_cache_clone.clone(), batch).await {
-                eprintln!("Error processing batch: {:?}", e);
-            }
+    let bg = std::thread::spawn(move || {
+        // Create a Tokio runtime within the thread
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+
+        // Continuously receive batches and process them
+        for batch in rx.iter() {
+            let pool = pool_clone.clone();
+            let positions_cache = positions_cache_clone.clone();
+
+            // Spawn a Tokio task for each batch
+            rt.spawn(async move {
+                if let Err(e) = process_batch(&pool, positions_cache, batch).await {
+                    eprintln!("Error processing batch: {:?}", e);
+                }
+            });
         }
     });
 
+    let file = File::open(file_path)?;
+    //drop the extra threads by doing this in its own lifetime
+    let mut reader = BufferedReader::new(BufReader::new(file));
     // Create the importer
     let mut importer = Importer {
-        tx,
-        batch_size: 1000,
+        tx: tx.clone(),
+        batch_size: 100,
         current_game: Game::default(),
         skip: false,
         batch_games: Vec::new(),
     };
-
+    reader.read_all(&mut importer)?;
     // Read the PGN file
-    let file = File::open(file_path)?;
-    let mut reader = BufferedReader::new(BufReader::new(file));
 
     // Read all games
-    reader.read_all(&mut importer)?;
 
-    // After reading all games, send any remaining batch
-    if !importer.batch_games.is_empty() {
-        let batch = std::mem::take(&mut importer.batch_games);
-        importer.tx.send(batch).await.unwrap();
-    }
+    drop(tx);
+    bg.join().expect("Processing thread panicked");
 
     Ok(())
 }
@@ -323,7 +352,7 @@ async fn process_batch(
             game.white_player.clone(),
             game.black_player.clone(),
             game.date,
-            game.result.clone(),
+            GameResult::from_str(&game.result),
             compressed_pgn_bytes,
             game.white_elo,
             game.black_elo,
@@ -348,10 +377,11 @@ async fn process_batch(
         // Build a query to select positions with compressed_fen in (...)
         let rows = sqlx::query!(
             "SELECT id, compressed_fen FROM positions WHERE compressed_fen = ANY($1)",
-            &compressed_fens_to_check_db
+            &compressed_fens_to_check_db as &[Vec<u8>]
         )
         .fetch_all(pool)
         .await?;
+        println!("Fetched {} rows from positions table", rows.len());
 
         let mut positions_cache_lock = positions_cache.lock().await;
 
@@ -372,7 +402,7 @@ async fn process_batch(
         // Insert new positions into positions table
         if !compressed_fens_not_in_db.is_empty() {
             let mut query_builder =
-                sqlx::QueryBuilder::new("INSERT INTO positions (compressed_fen) VALUES ");
+                sqlx::QueryBuilder::new("INSERT INTO positions (compressed_fen)");
             query_builder.push_values(compressed_fens_not_in_db.iter(), |mut b, cf| {
                 b.push_bind(cf);
             });
@@ -399,25 +429,25 @@ async fn process_batch(
 
     for (game_index, (_game, positions_in_game)) in game_data_list.into_iter().enumerate() {
         // Insert into master_games
-        let row: (i32,) = sqlx::query_as(
+        let row = sqlx::query!(
             "INSERT INTO master_games
             (eco, white_player, black_player, date, result, compressed_pgn, white_elo, black_elo, time_control)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id",
+            &master_games_inserts[game_index].0,
+            &master_games_inserts[game_index].1,
+            &master_games_inserts[game_index].2,
+            master_games_inserts[game_index].3,
+            master_games_inserts[game_index].4 as GameResult,
+            master_games_inserts[game_index].5,
+            master_games_inserts[game_index].6,
+            master_games_inserts[game_index].7,
+            master_games_inserts[game_index].8 as Option<Speed>  // Assuming Speed implements sqlx::Type
         )
-        .bind(&master_games_inserts[game_index].0)
-        .bind(&master_games_inserts[game_index].1)
-        .bind(&master_games_inserts[game_index].2)
-        .bind(master_games_inserts[game_index].3)
-        .bind(&master_games_inserts[game_index].4)
-        .bind(&master_games_inserts[game_index].5)
-        .bind(master_games_inserts[game_index].6)
-        .bind(master_games_inserts[game_index].7)
-        .bind(master_games_inserts[game_index].8)
         .fetch_one(pool)
         .await?;
 
-        let game_id = row.0;
+        let game_id = row.id;
         game_ids.push(game_id);
 
         // Prepare data for master_game_positions
@@ -443,7 +473,7 @@ async fn process_batch(
         }
 
         let mut query_builder = sqlx::QueryBuilder::new(
-            "INSERT INTO master_game_positions (game_id, position_id, move_number) VALUES ",
+            "INSERT INTO master_game_positions (game_id, position_id, move_number)",
         );
         query_builder.push_values(
             positions_data.iter(),
