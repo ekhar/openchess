@@ -1,38 +1,125 @@
 // src/lib/wasm/parser.ts
 
-import { pgnParser, initializeWasm } from "./index";
-import { type Game, Position } from "@/types/interfaces";
+import {
+  pgnParser,
+  pgnCompressor,
+  fenCompressor,
+  initializeWasm,
+} from "./index";
+import {
+  MasterGameSchema,
+  PlayerGameSchema,
+  type MasterGame,
+  type PlayerGame,
+} from "@/types/schemas";
 import { supabase } from "@/utils/supabaseClient";
+import { z } from "zod";
 
-export const parseAndStoreGames = async (pgnData: string): Promise<void> => {
+// Ensure Buffer is available (for Node.js). In browsers, use alternative methods if necessary.
+import { Buffer } from "buffer";
+
+/**
+ * Imports master games from Supabase, decompresses PGN, and returns them.
+ * @returns Array of MasterGame objects.
+ */
+export const importMasterGames = async (): Promise<MasterGame[]> => {
   try {
     // Initialize WASM if not already done
     await initializeWasm();
 
-    // Parse PGN data to JSON string
-    const parsedJson = pgnParser.parse_pgn(pgnData);
+    if (!pgnParser || !fenCompressor || !pgnCompressor) {
+      throw new Error("WASM modules failed to initialize.");
+    }
 
-    // Deserialize JSON to Game[]
-    const games: Game[] = JSON.parse(parsedJson);
+    // Fetch master games from Supabase
+    const { data: masterGamesData, error: masterGamesError } = await supabase
+      .from("master_games")
+      .select("*");
 
-    // Process each game
-    for (const game of games) {
+    if (masterGamesError) {
+      throw new Error(
+        `Error fetching master games: ${masterGamesError.message}`,
+      );
+    }
+
+    // Validate and parse master games data
+    const masterGames = MasterGameSchema.array().parse(masterGamesData);
+
+    // Decompress PGN for each game
+    const decompressedGames: MasterGame[] = masterGames.map((game) => {
+      // Decompress PGN from base64
+      const compressedPgnBytes = Buffer.from(game.compressed_pgn, "base64");
+      const decompressedPgn = pgnCompressor.decompress(compressedPgnBytes);
+
+      return {
+        ...game,
+        // Add decompressed_pgn if needed
+        // decompressed_pgn: decompressedPgn,
+      } as MasterGame;
+    });
+
+    // Return decompressed games or handle as needed
+    return decompressedGames;
+  } catch (error) {
+    console.error("Error importing master games:", error);
+    return [];
+  }
+};
+
+/**
+ * Exports and stores player games by compressing PGN and FEN,
+ * inserting into Supabase, and storing uncompressed PGN in local storage.
+ * @param playerGames Array of PlayerGame objects to export and store.
+ */
+export const exportPlayerGames = async (
+  playerGames: PlayerGame[],
+): Promise<void> => {
+  try {
+    // Initialize WASM if not already done
+    await initializeWasm();
+
+    if (!pgnParser || !fenCompressor || !pgnCompressor) {
+      throw new Error("WASM modules failed to initialize.");
+    }
+
+    // Validate player games data
+    const validatedGames = PlayerGameSchema.array().parse(playerGames);
+
+    // Iterate through each player game
+    for (const game of validatedGames) {
       // Compress PGN
-      const compressedPgn = await pgnCompressor.compress(pgnData); // Assuming you have the original PGN for compression
+      const compressedPgnBytes = pgnCompressor.compress(game.compressed_pgn);
+      if (!compressedPgnBytes) {
+        console.error("Failed to compress PGN data.");
+        continue;
+      }
 
-      // Insert or retrieve positions
+      // Convert Uint8Array to base64 string for storage
+      const compressedPgn = Buffer.from(compressedPgnBytes).toString("base64");
+
+      // Compress FENs and collect positions
       const positionIds: number[] = [];
       for (let i = 0; i < game.moves.length; i++) {
         const move = game.moves[i];
-        const fen = move.fen; // Adjust based on your `SanPlus` structure
+        const fen = move.fen; // Ensure your `SanPlus` includes `fen`
         if (fen) {
           // Compress FEN
-          const compressedFen = await fenCompressor.compress(fen);
+          const compressedFenBytes = fenCompressor.compress(fen);
+          if (!compressedFenBytes) {
+            console.error(`Failed to compress FEN: ${fen}`);
+            continue;
+          }
 
-          // Insert into positions table
+          // Convert Uint8Array to base64 string for storage
+          const compressedFen =
+            Buffer.from(compressedFenBytes).toString("base64");
+
+          // Insert into positions table (using upsert to avoid duplicates)
           const { data: positionData, error: positionError } = await supabase
             .from("positions")
-            .insert([{ compressed_fen: compressedFen }])
+            .upsert([{ compressed_fen: compressedFen }], {
+              onConflict: "compressed_fen",
+            })
             .select("id")
             .single();
 
@@ -45,31 +132,32 @@ export const parseAndStoreGames = async (pgnData: string): Promise<void> => {
         }
       }
 
-      // Insert into master_games
-      const masterGame: Omit<MasterGame, "id"> = {
-        eco: game.eco || "",
+      // Insert into player_games
+      const playerGameInsert: Omit<PlayerGame, "id"> = {
+        eco: game.eco,
         white_player: game.white_player,
         black_player: game.black_player,
         date: game.date ? new Date(game.date) : null,
         result: game.result,
         compressed_pgn: compressedPgn,
-        white_elo: game.white.rating || 0,
-        black_elo: game.black.rating || 0,
-        time_control: game.speed || null,
+        site: game.site,
+        white_elo: game.white_elo,
+        black_elo: game.black_elo,
+        time_control: game.time_control,
       };
 
       const { data: gameData, error: gameError } = await supabase
-        .from("master_games")
-        .insert([masterGame])
+        .from("player_games")
+        .insert([playerGameInsert])
         .select("*")
         .single();
 
       if (gameError) {
-        console.error("Error inserting master game:", gameError.message);
+        console.error("Error inserting player game:", gameError.message);
         continue;
       }
 
-      // Insert into master_game_positions
+      // Insert into player_game_positions
       const gamePositions = positionIds.map((positionId, index) => ({
         game_id: gameData.id,
         position_id: positionId,
@@ -77,15 +165,21 @@ export const parseAndStoreGames = async (pgnData: string): Promise<void> => {
       }));
 
       const { error: posError } = await supabase
-        .from("master_game_positions")
+        .from("player_game_positions")
         .insert(gamePositions);
 
       if (posError) {
         console.error("Error inserting game positions:", posError.message);
         continue;
       }
+
+      // Store uncompressed PGN in local storage
+      localStorage.setItem(
+        `player_game_${gameData.id}_pgn`,
+        game.compressed_pgn,
+      );
     }
   } catch (error) {
-    console.error("Error parsing and storing games:", error);
+    console.error("Error exporting and storing player games:", error);
   }
 };

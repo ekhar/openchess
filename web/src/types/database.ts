@@ -1,13 +1,12 @@
 // src/types/database.ts
 
-import { type GameResult, type Site, type Speed } from "./enums";
 import {
   type MasterGame,
   type MasterGamePosition,
   type PlayerGame,
   type PlayerGamePosition,
   type Position,
-} from "./interfaces";
+} from "@/types/schemas";
 
 export type Json =
   | string
@@ -47,9 +46,15 @@ export interface Database {
       };
     };
     Enums: {
-      game_result: GameResult;
-      site: Site;
-      speed: Speed;
+      game_result: "white" | "black" | "draw";
+      site: "chesscom" | "lichess" | "custom";
+      speed:
+        | "ultrabullet"
+        | "bullet"
+        | "blitz"
+        | "rapid"
+        | "classical"
+        | "correspondence";
     };
     // Add other schema elements if necessary (e.g., Views, Functions)
   };
