@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test WebAssembly</title>
+  </head>
+  <body>
+    <h1>Test WebAssembly Module</h1>
+    <p id="output"></p>
+
+    <script type="module">
+      // Import the WebAssembly module
+      import init, { FenCompressor } from "./pkg/wasm_test.js";
+
+      async function run() {
+        // Initialize the wasm module
+        await init();
+
+        // Create an instance of the FenCompressor
+        let compressor = new FenCompressor();
+
+        // Test the compress method
+        let fenString =
+          "r1bqkbnr/pppppppp/n7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let compressed = compressor.compress(fenString);
+
+        // Display the compressed result
+        document.getElementById("output").textContent =
+          `Compressed: ${compressed}`;
+        console.log("Compressed FEN: ", compressed);
+      }
+
+      // Run the function on page load
+      run();
+    </script>
+  </body>
+</html>

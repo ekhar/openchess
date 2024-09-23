@@ -1,10 +1,10 @@
 "use client";
-// app/components/ChessUsername.tsx
-import { useFormState, useFormStatus } from "react-dom";
-import { uploadGames } from "@/actions/upload-games";
+
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useBoardContext } from "@/context/UsernameContext";
+import { getChessGames } from "@/actions/get-chess-games"; // Assuming this is the function for downloading games
 
 const initialState = {
   success: false,
@@ -14,7 +14,7 @@ const initialState = {
 };
 
 function SubmitButton() {
-  const { pending } = useFormStatus();
+  const [pending, setPending] = useState(false);
   return (
     <Button type="submit" disabled={pending}>
       {pending ? "Submitting..." : "Submit"}
@@ -23,15 +23,35 @@ function SubmitButton() {
 }
 
 export default function ChessUsername() {
-  const [state, formAction] = useFormState(uploadGames, initialState);
+  const [state, setState] = useState(initialState);
   const { setUsername } = useBoardContext();
 
-  if (state.success) {
-    setUsername(state.username);
+  async function handleFormSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.target as HTMLFormElement);
+    const username = formData.get("username") as string;
+
+    setState({ ...state, success: false, error: null });
+
+    try {
+      let totalGames = 0;
+      // Run the download action 3 times (fetch chess games)
+      for (let i = 0; i < 3; i++) {
+        const result = await getChessGames(username, 2024, 9); // Example year/month
+        // Assuming result contains the number of games, adjust accordingly
+        totalGames += result.numGames;
+      }
+
+      setState({ success: true, numGames: totalGames, username, error: null });
+      setUsername(username);
+    } catch (error) {
+      setState({ ...state, error: (error as Error).message });
+    }
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={handleFormSubmit} className="space-y-4">
       <div>
         <Input
           type="text"
@@ -43,7 +63,7 @@ export default function ChessUsername() {
       <SubmitButton />
       {state.success && (
         <div>
-          <p>Success Importing {state.numGames} Games</p>
+          <p>Success Downloading {state.numGames} Games</p>
           <p>(Around {state.numGames * 49} Moves)</p>
           <p>Username: {state.username}</p>
         </div>
