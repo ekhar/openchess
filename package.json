@@ -16,6 +16,7 @@
     "test:inserter": "cd rust-local-inserter && cargo test"
   },
   "workspaces": [
-    "web-app"
+    "web",
+    "other-packages/*"
   ]
 }

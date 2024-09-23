@@ -341,8 +341,6 @@ impl CompressedPosition {
         fen.push(' ');
         if let Some(ep_square) = en_passant_square {
             write!(fen, "{}", ep_square).unwrap();
-        } else {
-            fen.push('-');
         }
 
         // Halfmove clock and fullmove number

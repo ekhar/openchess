@@ -1,0 +1,3 @@
+packages:
+  - "web/"
+  - "other-packages/*" # Include other package directories if you have any
