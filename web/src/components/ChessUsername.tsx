@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useBoardContext } from "@/context/UsernameContext";
-import { getChessGames } from "@/actions/get-chess-games"; // Assuming this is the function for downloading games
+import { fetchAndStoreChessGames } from "@/lib/wasm/controller";
 
 const initialState = {
   success: false,
@@ -38,9 +38,9 @@ export default function ChessUsername() {
       let totalGames = 0;
       // Run the download action 3 times (fetch chess games)
       for (let i = 0; i < 3; i++) {
-        const result = await getChessGames(username, 2024, 9); // Example year/month
+        const result = await fetchAndStoreChessGames(username, 2024, 9); // Example year/month
         // Assuming result contains the number of games, adjust accordingly
-        totalGames += result.numGames;
+        totalGames += 1;
       }
 
       setState({ success: true, numGames: totalGames, username, error: null });

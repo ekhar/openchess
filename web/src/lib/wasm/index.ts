@@ -2,9 +2,9 @@
 
 import init, { PgnParser, FenCompressor, PgnCompressor } from "./pkg/wasm_test"; // Adjust the path as necessary
 
-let pgnParser: PgnParser | null = null;
-let fenCompressor: FenCompressor | null = null;
-let pgnCompressor: PgnCompressor | null = null;
+let pgnParser: PgnParser;
+let fenCompressor: FenCompressor;
+let pgnCompressor: PgnCompressor;
 let wasmInitialized = false;
 
 export const initializeWasm = async () => {

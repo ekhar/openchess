@@ -141,10 +141,13 @@ struct Game {
     fen: Option<String>,
     id: Option<String>,
     date: Option<String>,
-    white: Player,
-    black: Player,
+    white_player: Option<String>,
+    black_player: Option<String>,
+    white_elo: Option<u16>,
+    black_elo: Option<u16>,
     #[serde_as(as = "DisplayFromStr")]
     result: GameResult,
+    eco: Option<String>, // Added eco field
     #[serde_as(as = "StringWithSeparator<SpaceSeparator, SanPlus>")]
     moves: Vec<SanPlus>,
 }
@@ -218,21 +221,19 @@ impl Visitor for Importer {
     fn header(&mut self, key: &[u8], value: RawHeader<'_>) {
         match key {
             b"White" => {
-                self.current.white.name = Some(value.decode_utf8().expect("White").into_owned());
+                self.current.white_player = Some(value.decode_utf8().expect("White").into_owned());
             }
             b"Black" => {
-                self.current.black.name = Some(value.decode_utf8().expect("Black").into_owned());
+                self.current.black_player = Some(value.decode_utf8().expect("Black").into_owned());
             }
             b"WhiteElo" => {
                 if value.as_bytes() != b"?" {
-                    self.current.white.rating =
-                        Some(btoi::btoi(value.as_bytes()).expect("WhiteElo"));
+                    self.current.white_elo = Some(btoi::btoi(value.as_bytes()).expect("WhiteElo"));
                 }
             }
             b"BlackElo" => {
                 if value.as_bytes() != b"?" {
-                    self.current.black.rating =
-                        Some(btoi::btoi(value.as_bytes()).expect("BlackElo"));
+                    self.current.black_elo = Some(btoi::btoi(value.as_bytes()).expect("BlackElo"));
                 }
             }
             b"TimeControl" => {
@@ -241,6 +242,10 @@ impl Visitor for Importer {
             }
             b"Variant" => {
                 self.current.variant = Some(value.decode_utf8().expect("Variant").into_owned());
+            }
+
+            b"ECO" => {
+                self.current.eco = Some(value.decode_utf8().expect("ECO").into_owned());
             }
             b"Date" | b"UTCDate" => {
                 self.current.date = Some(value.decode_utf8().expect("Date").into_owned());
@@ -306,8 +311,8 @@ impl Visitor for Importer {
     }
 
     fn end_headers(&mut self) -> Skip {
-        self.skip |= self.current.white.rating.is_none()
-            || self.current.black.rating.is_none()
+        self.skip |= self.current.white_elo.is_none()
+            || self.current.black_elo.is_none()
             || self.current.chess_site.is_none();
         Skip(self.skip)
     }
@@ -355,48 +360,3 @@ impl Default for PgnParser {
         Self::new()
     }
 }
-// #[cfg(test)]
-// #[test]
-// fn test_inline_pgn_parsing() {
-//     let pgn_data = "\
-// [Event \"World Championship\"]\n\
-// [Site \"Reykjavik\"]\n\
-// [Date \"1972.07.11\"]\n\
-// [Round \"6\"]\n\
-// [White \"Fischer, Bobby\"]\n\
-// [Black \"Spassky, Boris\"]\n\
-// [Result \"1-0\"]\n\
-// [ECO \"B50\"]\n\
-// [UTCDate \"1972.07.11\"]\n\
-// [WhiteElo \"2785\"]\n\
-// [BlackElo \"2640\"]\n\
-// [TimeControl \"600/0\"]\n\
-// [Termination \"Fischer won by resignation\"]\n\
-// \n\
-// 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 11. c4 c6 12. Nc3 Bb7 13. Bg5 h6 14. Bh4 Re8 15. Rc1 Bf8 16. a3 Qc7 17. Ba2 g6 18. Nh2 Bg7 19. f3 exd4 20. cxd4 Qb6 21. Qd2 c5 22. d5 c4 23. Nc4 Qc7 24. Nf1 Re6 25. Ng3 Nc5 26. Be3 d5 27. exd5 Nxd5 28. Nxd5 Rxd5 29. Qxd5 Qxd5 30. Bxd5 Rxe1+ 31. Rxe1 Kg7 32. Re7+ Kh8 33. Re8+ Kh7 34. Re7+ Kh8 35. Re8+ 1-0";
-//
-//     let mut reader = BufferedReader::new(pgn_data.as_bytes());
-//     let mut importer = Importer::default();
-//     let _ = reader.read_all(&mut importer);
-//
-//     assert_eq!(importer.games.len(), 1);
-//
-//     let game = importer.games.first().unwrap();
-//
-//     assert_eq!(game.date, Some("1972.07.11".to_string()));
-//     assert_eq!(game.white.name, "Fischer, Bobby");
-//     assert_eq!(game.black.name, "Spassky, Boris");
-//     assert_eq!(game.result, GameResult::White);
-//     assert_eq!(game.eco, Some("B50".to_string()));
-//     assert_eq!(game.utc_date, Some("1972.07.11".to_string()));
-//     assert_eq!(game.white_elo.unwrap(), 2785);
-//     assert_eq!(game.black_elo.unwrap(), 2640);
-//     assert_eq!(game.time_control, Some("600/0".to_string()));
-//     assert_eq!(
-//         game.termination,
-//         Some("Fischer won by resignation".to_string())
-//     );
-//     assert_eq!(game.moves.len(), 35);
-//     assert_eq!(game.moves.first().unwrap().0, "e4");
-//     assert_eq!(game.moves.last().unwrap().0, "Re8+");
-// }

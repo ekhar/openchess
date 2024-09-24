@@ -19,15 +19,16 @@ export const SanPlusSchema = z.object({
 
 // Define the PlayerGame schema
 export const PlayerGameSchema = z.object({
+  id: z.string().optional(), // From Rust's Game.id
   eco: z.string().max(4),
   white_player: z.string(),
   black_player: z.string(),
+  white_elo: z.number().int().optional(), // ELOs are optional in Rust
+  black_elo: z.number().int().optional(),
   date: z.string().optional(),
   result: GameResultSchema,
-  compressed_pgn: z.string(), // Assuming compressed_pgn is a base64 string
+  compressed_pgn: z.string(), // Base64 string
   site: z.enum(["chesscom", "lichess", "custom"]).optional(),
-  white_elo: z.number().int(),
-  black_elo: z.number().int(),
   time_control: z
     .enum([
       "ultrabullet",
@@ -38,7 +39,20 @@ export const PlayerGameSchema = z.object({
       "correspondence",
     ])
     .optional(),
+  fen: z.string().optional(), // Optional FEN from Rust's Game
+  variant: z.string().optional(),
+  moves: z
+    .array(
+      z.object({
+        san: z.string(),
+        fen: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
+
+// Export TypeScript types inferred from schemas
+export type PlayerGame = z.infer<typeof PlayerGameSchema>;
 
 // Define the PlayerGamePosition schema
 export const PlayerGamePositionSchema = z.object({
@@ -84,7 +98,6 @@ export const MasterGamePositionSchema = z.object({
 });
 
 // Export TypeScript types inferred from schemas
-export type PlayerGame = z.infer<typeof PlayerGameSchema>;
 export type PlayerGamePosition = z.infer<typeof PlayerGamePositionSchema>;
 export type MasterGame = z.infer<typeof MasterGameSchema>;
 export type MasterGamePosition = z.infer<typeof MasterGamePositionSchema>;
