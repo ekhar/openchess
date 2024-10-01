@@ -1,144 +1,100 @@
 // main.rs
-use crossbeam::channel::Sender;
-use dotenv::dotenv;
+use sqlx::PgPool;
+
 use pgn_reader::{BufferedReader, RawHeader, SanPlus, Skip, Visitor};
-use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
-use sqlx::postgres::PgPoolOptions;
+use shakmaty::{Chess, Position};
 use sqlx::types::chrono::NaiveDate;
-use sqlx::Row;
-use std::collections::{HashMap, HashSet};
 use std::env;
+use std::error::Error;
 use std::fs::File;
-use std::io::BufReader;
-use std::sync::Arc;
-use thiserror::Error;
-use tokio::sync::Mutex;
-
-mod compression; // Include your helper functions here
-
-#[derive(Debug)]
-struct Importer {
-    tx: Sender<Vec<Game>>,
-    batch_size: usize,
-    current_game: Game,
-    skip: bool,
-    batch_games: Vec<Game>,
-}
-impl Importer {
-    // New method to send a batch
-    fn send_batch(&mut self) {
-        println!("Sending batch of size {}", self.batch_games.len());
-        if !self.batch_games.is_empty() {
-            let batch =
-                std::mem::replace(&mut self.batch_games, Vec::with_capacity(self.batch_size));
-            if let Err(e) = self.tx.send(batch) {
-                println!("Failed to send batch: {:?}", e);
-            }
-        }
-    }
-}
-#[derive(Debug, Copy, Clone, sqlx::Type)]
-#[sqlx(type_name = "game_result", rename_all = "lowercase")]
-pub enum GameResult {
-    White,
-    Black,
-    Draw,
-}
-impl GameResult {
-    fn from_str(s: &str) -> Self {
-        match s {
-            "white" => GameResult::White,
-            "black" => GameResult::Black,
-            "draw" => GameResult::Draw,
-            _ => panic!("Invalid game result: {}", s), // Or handle this error as appropriate for your application
-        }
-    }
-}
-#[derive(Debug, Copy, Clone, sqlx::Type)]
-#[sqlx(type_name = "speed", rename_all = "lowercase")]
-enum Speed {
-    UltraBullet,
-    Bullet,
-    Blitz,
-    Rapid,
-    Classical,
-    Correspondence,
-}
-
-impl Speed {
-    fn from_seconds_and_increment(seconds: u64, increment: u64) -> Speed {
-        let total = seconds + 40 * increment;
-
-        if total < 30 {
-            Speed::UltraBullet
-        } else if total < 180 {
-            Speed::Bullet
-        } else if total < 480 {
-            Speed::Blitz
-        } else if total < 1500 {
-            Speed::Rapid
-        } else if total < 21_600 {
-            Speed::Classical
-        } else {
-            Speed::Correspondence
-        }
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Result<Speed, ()> {
-        if bytes == b"-" {
-            return Ok(Speed::Correspondence);
-        }
-        if bytes.contains(&b'/') {
-            return Ok(Speed::Correspondence);
-        }
-
-        let mut parts = bytes.splitn(2, |ch| *ch == b'+');
-
-        let seconds = match parts.next() {
-            Some(seconds_bytes) => btoi::btou(seconds_bytes).map_err(|_| ())?,
-            None => return Err(()),
-        };
-
-        let increment = match parts.next() {
-            Some(increment_bytes) => btoi::btou(increment_bytes).map_err(|_| ())?,
-            None => 0,
-        };
-
-        Ok(Speed::from_seconds_and_increment(seconds, increment))
-    }
-}
-
-#[derive(Default, Debug, Clone)]
+mod enums;
+use dotenv::dotenv;
+use enums::*;
+mod compression; // Include your updated FEN compressor here
+use compression::fen_compress::CompressedPosition;
+use compression::pgn_compress::{Encoder, EncoderError};
+// Define a struct to represent a row in the games table
+#[derive(Debug, Clone, Default, sqlx::FromRow)]
 struct Game {
     eco: String,
     white_player: String,
     black_player: String,
     date: Option<NaiveDate>,
-    result: String, // 'white', 'black', 'draw'
+    result: ResultType,
     pgn_moves: Vec<String>,
-    white_elo: i16,
-    black_elo: i16,
-    time_control: Option<Speed>, // 'ultraBullet', etc.
-    fen: Option<String>,
+    white_elo: i32,
+    black_elo: i32,
+    time_control: Option<ChessSpeed>,
+}
+impl Game {
+    pub fn compress_pgn(&self) -> Result<Vec<u8>, EncoderError> {
+        let mut encoder = Encoder::new();
+
+        for move_str in &self.pgn_moves {
+            encoder.encode_move(move_str)?;
+        }
+
+        let compressed = encoder.finalize();
+        Ok(compressed.to_bytes())
+    }
+}
+
+struct Importer {
+    current_game: Game,
+    skip: bool,
+}
+impl Importer {
+    fn new() -> Self {
+        Self {
+            current_game: Game {
+                eco: String::new(),
+                white_player: String::new(),
+                black_player: String::new(),
+                date: None,
+                result: ResultType::Draw, // Default to Draw for safety
+                pgn_moves: Vec::new(),
+                white_elo: 0,
+                black_elo: 0,
+                time_control: None,
+            },
+            skip: false,
+        }
+    }
 }
 
 impl Visitor for Importer {
-    type Result = ();
+    type Result = Game;
 
     fn begin_game(&mut self) {
-        self.skip = false;
         self.current_game = Game::default();
+        self.skip = false;
     }
 
     fn header(&mut self, key: &[u8], value: RawHeader<'_>) {
         match key {
             b"White" => {
-                self.current_game.white_player =
-                    value.decode_utf8().unwrap_or_default().into_owned();
+                self.current_game.white_player = value
+                    .decode_utf8()
+                    .map(|s| {
+                        if s == "?" {
+                            "Unknown".to_string()
+                        } else {
+                            s.to_string()
+                        }
+                    })
+                    .unwrap_or_default();
             }
             b"Black" => {
-                self.current_game.black_player =
-                    value.decode_utf8().unwrap_or_default().into_owned();
+                self.current_game.black_player = value
+                    .decode_utf8()
+                    .map(|s| {
+                        if s == "?" {
+                            "Unknown".to_string()
+                        } else {
+                            s.to_string()
+                        }
+                    })
+                    .unwrap_or_default();
             }
             b"WhiteElo" => {
                 self.current_game.white_elo = if value.as_bytes() != b"?" {
@@ -156,20 +112,36 @@ impl Visitor for Importer {
             }
             b"Date" => {
                 if let Ok(date_str) = value.decode_utf8() {
-                    if let Ok(date) = NaiveDate::parse_from_str(&date_str, "%Y.%m.%d") {
+                    let processed_date_str = date_str
+                        .replace(".??.", ".01.") // Replace month
+                        .replace(".??", ".01"); // Replace day
+                    if let Ok(date) = NaiveDate::parse_from_str(&processed_date_str, "%Y.%m.%d") {
                         self.current_game.date = Some(date);
+                    } else {
+                        // If parsing fails, you might want to handle partial dates
+                        // For example, try parsing just the year
+                        if let Ok(year) = processed_date_str
+                            .split('.')
+                            .next()
+                            .unwrap_or("")
+                            .parse::<i32>()
+                        {
+                            if let Some(date) = NaiveDate::from_ymd_opt(year, 1, 1) {
+                                self.current_game.date = Some(date);
+                            }
+                        }
                     }
                 }
             }
             b"Result" => {
                 let result_str = value.decode_utf8().unwrap_or_default().into_owned();
                 self.current_game.result = match result_str.as_str() {
-                    "1-0" => "white".to_string(),
-                    "0-1" => "black".to_string(),
-                    "1/2-1/2" => "draw".to_string(),
+                    "1-0" => ResultType::White,
+                    "0-1" => ResultType::Black,
+                    "1/2-1/2" => ResultType::Draw,
                     _ => {
                         self.skip = true;
-                        "draw".to_string()
+                        ResultType::Draw
                     }
                 };
             }
@@ -177,19 +149,21 @@ impl Visitor for Importer {
                 self.current_game.eco = value.decode_utf8().unwrap_or_default().into_owned();
             }
             b"TimeControl" => {
-                Speed::from_bytes(value.as_bytes()).expect("TimeControl");
-            }
-            b"FEN" => {
-                self.current_game.fen = value.decode_utf8().ok().map(|s| s.into_owned());
+                self.current_game.time_control = ChessSpeed::from_bytes(value.as_bytes()).ok();
             }
             _ => {}
         }
     }
 
     fn end_headers(&mut self) -> Skip {
-        self.skip |= self.current_game.white_player.is_empty()
-            || self.current_game.black_player.is_empty()
-            || self.current_game.eco.is_empty();
+        let d = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap();
+        if self.current_game.time_control.is_none()
+            && self.current_game.date.unwrap_or_default() < d
+        {
+            self.current_game.time_control = Some(ChessSpeed::Classical);
+        }
+        self.skip |=
+            self.current_game.white_player.is_empty() || self.current_game.black_player.is_empty();
         Skip(self.skip)
     }
 
@@ -201,340 +175,303 @@ impl Visitor for Importer {
         Skip(true) // Skip variations
     }
 
-    fn end_game(&mut self) {
+    fn end_game(&mut self) -> Self::Result {
         if !self.skip {
-            self.batch_games.push(self.current_game.clone());
-        }
-
-        if self.batch_games.len() >= self.batch_size {
-            self.send_batch();
-        }
-    }
-}
-
-#[derive(Error, Debug)]
-enum ImportError {
-    #[error("IO error")]
-    IoError(#[from] std::io::Error),
-    #[error("SQLx error")]
-    SqlxError(#[from] sqlx::Error),
-}
-
-async fn process_batch(
-    pool: &sqlx::Pool<sqlx::Postgres>,
-    positions_cache: Arc<Mutex<HashMap<Vec<u8>, i32>>>,
-    batch_games: Vec<Game>,
-    insert_counter: Arc<Mutex<usize>>,
-) -> Result<(), sqlx::Error> {
-    // Collect all unique compressed_fens across all games
-    let mut compressed_fens_set: HashSet<Vec<u8>> = HashSet::new();
-
-    // For mapping compressed_fen to position_id
-    let mut positions_map: HashMap<Vec<u8>, i32> = HashMap::new();
-
-    // For storing game data and positions for master_game_positions
-    let mut game_data_list = Vec::new(); // (Game, positions_in_game)
-    let mut master_games_inserts = Vec::new();
-
-    // First pass: collect compressed_fens and positions_in_game
-    for game in batch_games {
-        // Initialize the position
-        let mut position = if let Some(fen) = &game.fen {
-            match Fen::from_ascii(fen.as_bytes()) {
-                Ok(fen) => match fen.into_position(CastlingMode::Standard) {
-                    Ok(pos) => pos,
-                    Err(_) => {
-                        println!(
-                            "Error creating position from FEN for game ID: {}. Skipping.",
-                            game.fen.unwrap_or_default()
-                        );
-                        continue; // Skip to the next iteration
-                    }
-                },
-                Err(_) => {
-                    println!(
-                        "Error parsing FEN for game ID: {}. Skipping.",
-                        game.fen.unwrap_or_default()
-                    );
-                    continue; // Skip to the next iteration
-                }
-            }
+            self.current_game.clone()
         } else {
-            Chess::default()
-        };
-        let mut positions_in_game = Vec::new();
-
-        // Create an Encoder instance
-        let mut encoder = compression::pgn_compress::Encoder::new();
-
-        // Collect the positions and moves
-        for (move_number, san_str) in game.pgn_moves.iter().enumerate() {
-            let san_plus: SanPlus = san_str.parse().unwrap();
-            let mv = san_plus.san.to_move(&position).unwrap();
-
-            // Encode the move
-            encoder.encode_move(san_str).unwrap_or_default();
-
-            // Play the move
-            position = position.play(&mv).unwrap_or_default();
-
-            let compressed_fen = compression::fen_compress::CompressedPosition::compress(&position);
-
-            let mut data = Vec::new();
-            compressed_fen.write_to_big_endian(&mut data);
-            compressed_fens_set.insert(data);
-            positions_in_game.push((compressed_fen, move_number + 1)); // move_number starts from 1
-        }
-
-        // Finalize the compression
-        let compressed_pgn = encoder.finalize();
-
-        // You can now use compressed_pgn, which is a BitVec
-        // If you need it as bytes, you can convert it:
-        let compressed_pgn_bytes: Vec<u8> = compressed_pgn.to_bytes(); // Prepare data for master_games
-        master_games_inserts.push((
-            game.eco.clone(),
-            game.white_player.clone(),
-            game.black_player.clone(),
-            game.date,
-            GameResult::from_str(&game.result),
-            compressed_pgn_bytes,
-            game.white_elo,
-            game.black_elo,
-            game.time_control,
-        ));
-
-        game_data_list.push((game, positions_in_game));
-    }
-
-    // Now, check which compressed_fens are not in positions_cache
-    let positions_cache_lock = positions_cache.lock().await;
-    let cached_fens: HashSet<Vec<u8>> = positions_cache_lock.keys().cloned().collect();
-    let compressed_fens_to_check_db: Vec<Vec<u8>> = compressed_fens_set
-        .difference(&cached_fens)
-        .cloned()
-        .collect();
-
-    drop(positions_cache_lock); // Release the lock
-
-    // Now, check in database
-    if !compressed_fens_to_check_db.is_empty() {
-        // Build a query to select positions with compressed_fen in (...)
-        let rows = sqlx::query!(
-            "SELECT id, compressed_fen FROM positions WHERE compressed_fen = ANY($1)",
-            &compressed_fens_to_check_db as &[Vec<u8>]
-        )
-        .fetch_all(pool)
-        .await?;
-        println!("Fetched {} rows from positions table", rows.len());
-
-        let mut positions_cache_lock = positions_cache.lock().await;
-
-        // Update positions_cache with the found positions
-        for row in rows {
-            let id: i32 = row.id;
-            let compressed_fen: Vec<u8> = row.compressed_fen.unwrap_or_default();
-            positions_cache_lock.insert(compressed_fen.clone(), id);
-            positions_map.insert(compressed_fen, id);
-        }
-
-        // Now, find compressed_fens not found in database
-        let compressed_fens_not_in_db: Vec<Vec<u8>> = compressed_fens_to_check_db
-            .into_iter()
-            .filter(|cf| !positions_map.contains_key(cf))
-            .collect();
-
-        // Insert new positions into positions table
-        if !compressed_fens_not_in_db.is_empty() {
-            let mut query_builder =
-                sqlx::QueryBuilder::new("INSERT INTO positions (compressed_fen)");
-            query_builder.push_values(compressed_fens_not_in_db.iter(), |mut b, cf| {
-                b.push_bind(cf);
-            });
-
-            query_builder.push(" ON CONFLICT DO NOTHING");
-
-            query_builder.push(" RETURNING id, compressed_fen");
-
-            // Execute the query and get the ids
-            let rows = query_builder.build().fetch_all(pool).await?;
-
-            // Update positions_cache and positions_map with the new ids
-            for row in rows {
-                let id: i32 = row.get("id");
-                let compressed_fen: Vec<u8> = row.get("compressed_fen");
-                positions_cache_lock.insert(compressed_fen.clone(), id);
-                positions_map.insert(compressed_fen, id);
-            }
-        }
-
-        drop(positions_cache_lock); // Release the lock
-    }
-
-    // Now, process the games and prepare data for master_game_positions
-    let mut master_game_positions_inserts = Vec::new();
-    let mut game_ids = Vec::new();
-
-    for (game_index, (_game, positions_in_game)) in game_data_list.into_iter().enumerate() {
-        // Insert into master_games
-        let row = sqlx::query!(
-            "INSERT INTO master_games 
-            (eco, white_player, black_player, date, result, compressed_pgn, 
-            white_elo, black_elo, time_control) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
-            ON CONFLICT DO NOTHING 
-            RETURNING id",
-            &master_games_inserts[game_index].0,
-            &master_games_inserts[game_index].1,
-            &master_games_inserts[game_index].2,
-            master_games_inserts[game_index].3,
-            master_games_inserts[game_index].4 as GameResult,
-            master_games_inserts[game_index].5,
-            master_games_inserts[game_index].6,
-            master_games_inserts[game_index].7,
-            master_games_inserts[game_index].8 as Option<Speed>
-        )
-        .fetch_optional(pool)
-        .await?;
-
-        match row {
-            Some(row) => {
-                let game_id = row.id;
-                game_ids.push(game_id);
-
-                // Prepare data for master_game_positions
-                let mut positions_data = Vec::new();
-
-                for (compressed_fen, move_number) in positions_in_game {
-                    let mut data = Vec::new();
-                    compressed_fen.write_to_big_endian(&mut data);
-                    let position_id = {
-                        let positions_cache_lock = positions_cache.lock().await;
-                        *positions_cache_lock.get(&data).unwrap()
-                    };
-                    positions_data.push((game_id, position_id, move_number as i32));
-                }
-
-                master_game_positions_inserts.push(positions_data);
-            }
-            None => {
-                // You might want to log this or handle it in some way
+            Game {
+                eco: String::new(),
+                white_player: String::new(),
+                black_player: String::new(),
+                date: None,
+                result: ResultType::Draw,
+                pgn_moves: Vec::new(),
+                white_elo: 0,
+                black_elo: 0,
+                time_control: None,
             }
         }
     }
-
-    // Now, insert into master_game_positions
-    for positions_data in master_game_positions_inserts {
-        if positions_data.is_empty() {
-            continue;
-        }
-
-        let mut query_builder = sqlx::QueryBuilder::new(
-            "INSERT INTO master_game_positions (game_id, position_id, move_number)",
-        );
-        query_builder.push_values(
-            positions_data.iter(),
-            |mut b, (game_id, position_id, move_number)| {
-                b.push_bind(*game_id)
-                    .push_bind(*position_id)
-                    .push_bind(*move_number);
-            },
-        );
-
-        query_builder.push(" ON CONFLICT DO NOTHING");
-
-        // Execute the query and check affected rows
-        let result = query_builder.build().execute(pool).await?;
-        // Update insert counter
-        let mut counter = insert_counter.lock().await;
-        *counter += result.rows_affected() as usize;
-
-        // Print progress every 20,000 inserts
-        if *counter % 20000 == 0 {
-            println!("Processed {} inserts", *counter);
-        }
-    }
-    println!("Done with master_game_positions");
-
-    Ok(())
 }
 
 #[tokio::main]
-async fn main() -> Result<(), ImportError> {
+async fn main() -> Result<(), Box<dyn Error>> {
+    dotenv().ok();
+    // Get the PGN file path from command-line arguments
+    println!("Starting the importer...");
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
+        eprintln!("Usage: {} <pgn_file>", args[0]);
         std::process::exit(1);
     }
-    let insert_counter = Arc::new(Mutex::new(0));
-
     let file_path = &args[1];
 
-    // Set up the database connection
-    dotenv().ok();
-    let supa_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = PgPoolOptions::new()
-        .max_connections(11)
-        .connect(&supa_url)
-        .await?;
+    // Open the PGN file and create a BufferedReader
+    let file = File::open(file_path)?;
+    let mut reader = BufferedReader::new(file);
 
-    // Create the mpsc channel
-    let (tx, rx) = crossbeam::channel::bounded::<Vec<Game>>(100);
+    // Connect to PostgreSQL
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let pool = PgPool::connect(&database_url).await?;
 
-    // Positions cache shared between batches
-    let positions_cache = Arc::new(Mutex::new(HashMap::new()));
+    // Initialize variables for batching
+    let batch_size = 5_000;
+    let mut games_batch = Vec::with_capacity(batch_size);
+    let mut games_processed = 0;
+    let mut read_games: usize = 0;
+    // Read and process games one at a time
+    loop {
+        let mut importer = Importer::new();
 
-    // Spawn the async task to process batches
-    let pool_clone = pool.clone();
-    let positions_cache_clone = positions_cache.clone();
-    let insert_counter_clone = insert_counter.clone();
+        read_games += 1;
+        if read_games % 20_000 == 0 {
+            println!("Read {} games", read_games);
+        }
+        match reader.read_game(&mut importer)? {
+            Some(game) => {
+                if !importer.skip {
+                    games_batch.push(game);
+                }
 
-    let bg = std::thread::spawn(move || {
-        // Create a Tokio runtime within the thread
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+                if games_batch.len() >= batch_size {
+                    // Process and insert the batch
+                    process_and_insert_batch(&mut games_batch, &pool).await?;
 
-        // Define an asynchronous block to process batches sequentially
-        let process_batches = async {
-            for batch in rx.iter() {
-                let pool = pool_clone.clone();
-                let positions_cache = positions_cache_clone.clone();
-                let insert_counter = insert_counter_clone.clone();
-                // Directly await the processing of each batch
-                if let Err(e) = process_batch(&pool, positions_cache, batch, insert_counter).await {
-                    eprintln!("Error processing batch: {:?}", e);
-                } else {
-                    println!("Processed batch successfully");
+                    games_processed += batch_size;
+                    println!("Processed and inserted {} games", games_processed);
                 }
             }
-        };
-
-        // Run the asynchronous block within the Tokio runtime
-        rt.block_on(process_batches);
-
-        // This will only print after all batches have been processed
-        println!("Done with the thread");
-    });
-
-    // Create the importer
-    {
-        let file = File::open(file_path)?;
-        let mut reader = BufferedReader::new(BufReader::new(file));
-
-        let mut importer = Importer {
-            tx: tx.clone(),
-            batch_size: 2000,
-            current_game: Game::default(),
-            skip: false,
-            batch_games: Vec::new(),
-        };
-        println!("done with importer");
-        reader.read_all(&mut importer)?;
-        importer.send_batch();
-        println!(" hey ");
-        // Importer goes out of scope and is dropped here
+            None => {
+                // No more games to read
+                break;
+            }
+        }
     }
-    drop(tx);
 
-    bg.join().expect("Processing thread panicked");
+    // Process any remaining games in the batch
+    if !games_batch.is_empty() {
+        process_and_insert_batch(&mut games_batch, &pool).await?;
+
+        games_processed += games_batch.len();
+        println!("Processed and inserted {} games", games_processed);
+    }
+
+    println!("Import completed successfully.");
+    Ok(())
+}
+
+async fn process_and_insert_batch(
+    games_batch: &mut Vec<Game>,
+    pool: &PgPool,
+) -> Result<(), Box<dyn Error>> {
+    // Start a new transaction
+    let mut tx = pool.begin().await?;
+
+    // Prepare vectors for bulk inserting into the 'games' table
+    let mut eco_vec: Vec<String> = Vec::with_capacity(games_batch.len());
+    let mut white_player_vec: Vec<String> = Vec::with_capacity(games_batch.len());
+    let mut black_player_vec: Vec<String> = Vec::with_capacity(games_batch.len());
+    let mut date_vec: Vec<Option<NaiveDate>> = Vec::with_capacity(games_batch.len());
+    let mut result_vec: Vec<ResultType> = Vec::with_capacity(games_batch.len());
+    let mut white_elo_vec: Vec<i32> = Vec::with_capacity(games_batch.len());
+    let mut black_elo_vec: Vec<i32> = Vec::with_capacity(games_batch.len());
+    let mut time_control_vec: Vec<ChessSpeed> = Vec::with_capacity(games_batch.len());
+
+    let mut compressed_pgn_vec: Vec<Vec<u8>> = Vec::with_capacity(games_batch.len());
+
+    // Populate the vectors with data from the games_batch
+    for game in games_batch.iter() {
+        match game.compress_pgn() {
+            Ok(compressed) => {
+                compressed_pgn_vec.push(compressed);
+            }
+            Err(e) => {
+                eprintln!("Error compressing game: {:?}", e);
+                // Decide how to handle errors (skip, use uncompressed, etc.)
+                continue; // Here, we choose to skip the game on compression error
+            }
+        }
+
+        eco_vec.push(game.eco.clone());
+        white_player_vec.push(game.white_player.clone());
+        black_player_vec.push(game.black_player.clone());
+        date_vec.push(game.date);
+        result_vec.push(game.result);
+        white_elo_vec.push(game.white_elo);
+        black_elo_vec.push(game.black_elo);
+        time_control_vec.push(game.time_control.unwrap_or(ChessSpeed::Classical));
+    }
+
+    // Bulk insert into the 'games' table and retrieve the generated ids
+    let inserted_game_ids: Vec<i32> = sqlx::query!(
+        r#"
+        INSERT INTO games (
+            eco, white_player, black_player, date, result, white_elo, black_elo, time_control, pgn_moves
+        )
+        SELECT 
+            t.eco, 
+            t.white_player, 
+            t.black_player, 
+            t.date, 
+            t.result::result, 
+            t.white_elo, 
+            t.black_elo, 
+            t.time_control::chess_speed, 
+            t.pgn_moves
+        FROM UNNEST(
+            $1::VARCHAR[],
+            $2::VARCHAR[],
+            $3::VARCHAR[],
+            $4::DATE[],
+            $5::VARCHAR[],
+            $6::INTEGER[],
+            $7::INTEGER[],
+            $8::VARCHAR[],
+            $9::BYTEA[]
+        ) AS t(eco, white_player, black_player, date, result, white_elo, black_elo, time_control, pgn_moves)
+        RETURNING id
+        "#,
+        &eco_vec,
+        &white_player_vec,
+        &black_player_vec,
+        &date_vec as &[Option<NaiveDate>],
+        &result_vec.iter().map(|r| r.to_string()).collect::<Vec<_>>(),
+        &white_elo_vec,
+        &black_elo_vec,
+        &time_control_vec.iter().map(|tc| tc.to_string()).collect::<Vec<_>>(),
+        &compressed_pgn_vec,
+    )
+    .fetch_all(&mut *tx)
+    .await?
+    .iter()
+    .map(|row| row.id)
+    .collect();
+
+    // Ensure that the number of returned ids matches the number of inserted games
+    if inserted_game_ids.len() != games_batch.len() {
+        return Err("Mismatch between inserted games and returned game IDs".into());
+    }
+
+    // Prepare vectors for bulk inserting into the 'positions' table
+    let mut position_game_ids: Vec<i32> = Vec::new();
+    let mut move_numbers: Vec<i16> = Vec::new();
+    let mut positions_vec: Vec<Vec<u8>> = Vec::new();
+
+    // Process each game to extract and compress positions
+    for (i, game) in games_batch.iter().enumerate() {
+        let game_id = inserted_game_ids[i];
+
+        // Initialize the position
+        let mut position = Chess::default();
+
+        let mut compressed_positions = Vec::new();
+        let mut valid_game = true;
+
+        for san_str in &game.pgn_moves {
+            // Parse the move
+            let san_plus: SanPlus = match san_str.parse() {
+                Ok(san_plus) => san_plus,
+                Err(e) => {
+                    println!(
+                        "Error parsing SAN: {} for game ID {}. Skipping game.",
+                        e, game_id
+                    );
+                    valid_game = false;
+                    break;
+                }
+            };
+
+            // Convert to a Move
+            let mv = match san_plus.san.to_move(&position) {
+                Ok(mv) => mv,
+                Err(e) => {
+                    println!(
+                        "Error converting SAN to move: {} for game ID {}. Skipping game.",
+                        e, game_id
+                    );
+                    valid_game = false;
+                    break;
+                }
+            };
+
+            // Play the move
+            position = match position.play(&mv) {
+                Ok(pos) => pos,
+                Err(e) => {
+                    println!(
+                        "Error playing move: {} for game ID {}. Skipping game.",
+                        e, game_id
+                    );
+                    valid_game = false;
+                    break;
+                }
+            };
+
+            // Compress the position
+            let compressed = CompressedPosition::compress(&position);
+            compressed_positions.push(compressed);
+        }
+
+        if !valid_game {
+            continue; // Skip to the next game
+        }
+
+        // Limit to 50 positions per game
+        let limited_compressed_positions = compressed_positions
+            .into_iter()
+            .take(50)
+            .collect::<Vec<_>>();
+
+        for (move_number, compressed) in limited_compressed_positions.iter().enumerate() {
+            // Ensure compressed position is 32 bytes as per table constraint
+            let compressed_bytes = compressed.to_vec();
+            if compressed_bytes.len() != 32 {
+                println!(
+                    "Unexpected compressed FEN length: {} for game ID {}. Skipping this position.",
+                    compressed_bytes.len(),
+                    game_id
+                );
+                continue;
+            }
+
+            position_game_ids.push(game_id);
+            move_numbers.push((move_number + 1) as i16);
+            positions_vec.push(compressed_bytes);
+        }
+    }
+
+    // Bulk insert into the 'positions' table
+    if !position_game_ids.is_empty() {
+        sqlx::query!(
+            r#"
+            INSERT INTO positions (game_id, move_number, position)
+            SELECT * FROM UNNEST(
+                $1::INTEGER[],
+                $2::SMALLINT[],
+                $3::BYTEA[]
+            ) AS t(game_id, move_number, position)
+            "#,
+            &position_game_ids,
+            &move_numbers,
+            &positions_vec,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    // Commit the transaction
+    tx.commit().await?;
+
+    // Update the count of processed games
+    let games_inserted = inserted_game_ids.len();
+    println!("Processed and inserted {} games", games_inserted);
+
+    // To get the number of positions inserted, you can query the positions_vec length
+    let positions_inserted = positions_vec.len();
+    println!("Processed and inserted {} positions", positions_inserted);
+
+    // Clear the games_batch for the next batch
+    games_batch.clear();
 
     Ok(())
 }

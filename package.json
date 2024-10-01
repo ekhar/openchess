@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "web:dev": "cd web-app && npm run dev",
-    "web:build": "cd web-app && npm run build",
+    "web:dev": "cd web && npm run dev",
+    "web:build": "cd web && npm run build",
     "lambda:build": "cd rust-lambda && cargo build --release",
     "inserter:build": "cd rust-local-inserter && cargo build --release",
     "db:migration": "supabase db push",
     "db:start-local": "supabase start",
     "deploy:lambda": "./scripts/deploy-lambda.sh",
     "test": "npm run test:web && npm run test:lambda && npm run test:inserter",
-    "test:web": "cd web-app && npm test",
+    "test:web": "cd web && npm test",
     "test:lambda": "cd rust-lambda && cargo test",
     "test:inserter": "cd rust-local-inserter && cargo test"
   },
