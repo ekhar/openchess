@@ -4,3 +4,4 @@ src/pgns/*.pgn
 pgn-extract/
 .env
 *.bin
+pgn-scripts/venv
