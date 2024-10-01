@@ -4,7 +4,9 @@
   "private": true,
   "workspaces": [
     "web",
-    "master-insert"
+    "master-insert",
+    "packages/chess-compression",
+    "packages/chess-compression-wasm"
   ],
   "scripts": {
     "build": "turbo run build",

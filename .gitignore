@@ -1,12 +1,22 @@
 # Dependencies
 node_modules/
 
+# WASM
+pkg/
+
+# Next.js
+.next/
+
 # Rust
 target/
 
 # Environment variables
 .env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
 # IDE files
 .vscode/
 .idea/
@@ -17,6 +27,9 @@ Thumbs.db
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Build output
 dist/
