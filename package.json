@@ -1,22 +1,23 @@
 {
-  "name": "supabase_hackathon",
+  "name": "openchess",
   "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "web:dev": "cd web && npm run dev",
-    "web:build": "cd web && npm run build",
-    "lambda:build": "cd rust-lambda && cargo build --release",
-    "inserter:build": "cd rust-local-inserter && cargo build --release",
-    "db:migration": "supabase db push",
-    "db:start-local": "supabase start",
-    "deploy:lambda": "./scripts/deploy-lambda.sh",
-    "test": "npm run test:web && npm run test:lambda && npm run test:inserter",
-    "test:web": "cd web && npm test",
-    "test:lambda": "cd rust-lambda && cargo test",
-    "test:inserter": "cd rust-local-inserter && cargo test"
-  },
   "workspaces": [
     "web",
-    "other-packages/*"
-  ]
+    "master-insert"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+  },
+  "devDependencies": {
+    "turbo": "latest",
+    "prettier": "latest"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "packageManager": "pnpm@8.6.10"
 }

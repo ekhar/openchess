@@ -25,3 +25,7 @@ build/
 
 # Supabase
 supabase/.temp/
+
+# Turborepo
+.turbo
+node_modules
