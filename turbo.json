@@ -22,6 +22,15 @@
       "dependsOn": ["^build"],
       "inputs": ["src/**/*.rs", "Cargo.toml"],
       "outputs": ["pkg/**"]
+    },
+    "db:migrate": {
+      "cache": false
+    },
+    "db:create": {
+      "cache": false
+    },
+    "db:revert": {
+      "cache": false
     }
   }
 }

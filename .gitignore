@@ -35,8 +35,13 @@ yarn-error.log*
 dist/
 build/
 
+# Database
+*.sqlite
+*.sqlite-journal
+
 # Supabase
-supabase/.temp/
+**/supabase/.branches
+**/supabase/.temp
 
 # Turborepo
 .turbo

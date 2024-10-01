@@ -1,0 +1,13 @@
+{
+  "name": "supabase-db",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate": "supabase db push",
+    "create": "supabase migration new",
+    "revert": "supabase db reset"
+  },
+  "devDependencies": {
+    "supabase": "^1.8.1"
+  }
+}

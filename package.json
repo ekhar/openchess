@@ -3,17 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "web",
-    "master-insert",
-    "packages/chess-compression",
-    "packages/chess-compression-wasm"
+    "apps/*",
+    "packages/*",
+    "packages/databases",
+    "packages/databases/*"
   ],
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "db:migrate:chess-games": "turbo run db:migrate --filter=databases -- chess-games",
+    "db:migrate:supabase": "turbo run db:migrate --filter=databases -- supabase",
+    "db:create:chess-games": "turbo run db:create --filter=databases -- chess-games",
+    "db:create:supabase": "turbo run db:create --filter=databases -- supabase",
+    "db:revert:chess-games": "turbo run db:revert --filter=databases -- chess-games",
+    "db:revert:supabase": "turbo run db:revert --filter=databases -- supabase"
   },
   "devDependencies": {
     "turbo": "latest",

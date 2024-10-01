@@ -1,0 +1,13 @@
+{
+  "name": "databases",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate:chess-games": "pnpm --filter chess-games-db run migrate",
+    "migrate:supabase": "pnpm --filter supabase-db run migrate",
+    "create:chess-games": "pnpm --filter chess-games-db run create",
+    "create:supabase": "pnpm --filter supabase-db run create",
+    "revert:chess-games": "pnpm --filter chess-games-db run revert",
+    "revert:supabase": "pnpm --filter supabase-db run revert"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "chess-games-db",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate": "sqlx migrate run",
+    "create": "sqlx migrate add",
+    "revert": "sqlx migrate revert"
+  },
+  "devDependencies": {
+    "sqlx-cli": "^0.6.2"
+  }
+}
