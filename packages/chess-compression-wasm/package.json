@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "wasm-pack build ../chess-compression --target web --out-dir ../chess-compression-wasm/pkg",
+    "build": "wasm-pack build ../chess-compression --target web --out-dir ../chess-compression-wasm/pkg --verbose",
     "test": "wasm-pack test --node ../chess-compression"
   },
   "files": [

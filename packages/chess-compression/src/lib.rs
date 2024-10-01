@@ -7,6 +7,8 @@ pub mod fen_compress;
 mod huffman_code;
 pub mod pgn_compress;
 mod psqt;
+pub mod wasm;
+pub use wasm::*;
 
 pub use fen_compress::{CompressedPosition, CompressedPositionError};
 pub use pgn_compress::{Encoder, EncoderError};

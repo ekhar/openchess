@@ -171,6 +171,7 @@ dependencies = [
  "bit-vec",
  "console_error_panic_hook",
  "huffman-compress",
+ "js-sys",
  "shakmaty",
  "thiserror",
  "wasm-bindgen",

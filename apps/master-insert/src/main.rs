@@ -1,9 +1,8 @@
 // main.rs
-use sqlx::PgPool;
-
 use pgn_reader::{BufferedReader, RawHeader, SanPlus, Skip, Visitor};
 use shakmaty::{Chess, Position};
 use sqlx::types::chrono::NaiveDate;
+use sqlx::PgPool;
 use std::env;
 use std::error::Error;
 use std::fs::File;
