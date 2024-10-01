@@ -8,7 +8,7 @@ mod huffman_code;
 pub mod pgn_compress;
 mod psqt;
 
-pub use fen_compress::CompressedPosition;
+pub use fen_compress::{CompressedPosition, CompressedPositionError};
 pub use pgn_compress::{Encoder, EncoderError};
 
 // Re-export types from shakmaty that are used in our public API
@@ -33,7 +33,7 @@ pub fn compress_position(position: &Chess) -> [u8; 32] {
 
 /// Decompress a chess position
 ///
-/// This function takes a `CompressedPosition` and returns a `Result<Chess, CompressedPositionError>`.
+/// This function takes a compressed position as a `[u8; 32]` array and returns a `Result<Chess, CompressedPositionError>`.
 ///
 /// # Examples
 ///
@@ -46,10 +46,8 @@ pub fn compress_position(position: &Chess) -> [u8; 32] {
 /// let decompressed = decompress_position(&compressed).unwrap();
 /// assert_eq!(position, decompressed);
 /// ```
-pub fn decompress_position(
-    compressed: &CompressedPosition,
-) -> Result<Chess, fen_compress::CompressedPositionError> {
-    CompressedPosition::decompress(&compressed.compressed)
+pub fn decompress_position(compressed: &[u8; 32]) -> Result<Chess, CompressedPositionError> {
+    CompressedPosition::decompress(compressed)
 }
 
 /// Compress a sequence of chess moves (PGN)
@@ -61,7 +59,7 @@ pub fn decompress_position(
 /// ```
 /// use chess_compression::compress_pgn;
 ///
-/// let moves = vec!["e4", "e5", "Nf3", "Nc6"];
+/// let moves = vec!["e4".to_string(), "e5".to_string(), "Nf3".to_string(), "Nc6".to_string()];
 /// let compressed = compress_pgn(&moves).unwrap();
 /// ```
 pub fn compress_pgn(moves: &[String]) -> Result<Vec<u8>, EncoderError> {
