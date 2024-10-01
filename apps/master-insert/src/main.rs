@@ -8,11 +8,9 @@ use std::env;
 use std::error::Error;
 use std::fs::File;
 mod enums;
+use chess_compression::{CompressedPosition, Encoder, EncoderError};
 use dotenv::dotenv;
 use enums::*;
-mod compression; // Include your updated FEN compressor here
-use compression::fen_compress::CompressedPosition;
-use compression::pgn_compress::{Encoder, EncoderError};
 // Define a struct to represent a row in the games table
 #[derive(Debug, Clone, Default, sqlx::FromRow)]
 struct Game {

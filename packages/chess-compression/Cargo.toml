@@ -1,0 +1,10 @@
+[package]
+name = "chess-compression"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+shakmaty = "0.27"
+thiserror = "1.0"
+bit-vec = "0.6.3"
+huffman-compress = "0.6.1"

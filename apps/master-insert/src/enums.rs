@@ -1,19 +1,13 @@
 // Define an enum to represent the game result in PostgreSQL
 
 use std::fmt;
-#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::Type)]
+#[derive(Debug, Copy, Default, Clone, PartialEq, Eq, sqlx::Type)]
 #[sqlx(type_name = "result", rename_all = "lowercase")]
 pub enum ResultType {
     White,
     Black,
+    #[default]
     Draw,
-}
-
-//make a default for ResultType
-impl Default for ResultType {
-    fn default() -> Self {
-        ResultType::Draw
-    }
 }
 
 // Implement Display for the ResultType enum

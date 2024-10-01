@@ -1,6 +1,6 @@
 // src/compression/pgn_compress.rs
-use crate::compression::huffman_code::get_huffman_code;
-use crate::compression::psqt::piece_value;
+use crate::huffman_code::get_huffman_code;
+use crate::psqt::piece_value;
 use bit_vec::BitVec;
 use huffman_compress::{Book, EncodeError, Tree};
 use shakmaty::{

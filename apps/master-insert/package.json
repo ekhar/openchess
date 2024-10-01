@@ -1,0 +1,9 @@
+{
+  "name": "chess-compression",  // or "master-insert" for the other package
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build --release",
+    "test": "cargo test"
+  }
+}
