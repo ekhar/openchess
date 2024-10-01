@@ -1,0 +1,9 @@
+{
+  "name": "supabase",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "deploy": "supabase db push"
+  }
+}

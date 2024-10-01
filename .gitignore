@@ -7,7 +7,6 @@ target/
 # Environment variables
 .env
 .env.local
-
 # IDE files
 .vscode/
 .idea/
