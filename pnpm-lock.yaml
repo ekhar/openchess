@@ -12,7 +12,7 @@ importers:
         specifier: latest
         version: 3.3.3
       turbo:
-        specifier: latest
+        specifier: ^2.1.3
         version: 2.1.3
 
   apps/master-insert:
@@ -63,7 +63,7 @@ importers:
         specifier: ^0.436.0
         version: 0.436.0(react@18.3.1)
       next:
-        specifier: ^14.2.7
+        specifier: ^14.2.14
         version: 14.2.14(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-themes:
         specifier: ^0.3.0
