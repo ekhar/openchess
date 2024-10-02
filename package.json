@@ -5,8 +5,7 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "packages/databases",
-    "packages/databases/*"
+    "databases/*"
   ],
   "scripts": {
     "build": "turbo run build",
@@ -14,12 +13,17 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "db:migrate:chess-games": "turbo run db:migrate --filter=databases -- chess-games",
-    "db:migrate:supabase": "turbo run db:migrate --filter=databases -- supabase",
-    "db:create:chess-games": "turbo run db:create --filter=databases -- chess-games",
-    "db:create:supabase": "turbo run db:create --filter=databases -- supabase",
-    "db:revert:chess-games": "turbo run db:revert --filter=databases -- chess-games",
-    "db:revert:supabase": "turbo run db:revert --filter=databases -- supabase"
+    "db:chess-games:migrate": "turbo run db:migrate --filter=databases -- chess-games",
+    "db:chess-games:create": "turbo run db:create --filter=databases -- chess-games",
+    "db:chess-games:revert": "turbo run db:revert --filter=databases -- chess-games",
+    "db:supabase:push": "turbo run db:push --filter=databases -- supabase",
+    "db:supabase:reset": "turbo run db:reset --filter=databases -- supabase",
+    "db:supabase:pull": "turbo run db:pull --filter=databases -- supabase",
+    "db:supabase:diff": "turbo run db:diff --filter=databases -- supabase",
+    "db:supabase:new": "turbo run db:new --filter=databases -- supabase",
+    "db:supabase:link": "turbo run db:link --filter=databases -- supabase",
+    "db:supabase:start": "turbo run db:start --filter=databases -- supabase",
+    "db:supabase:stop": "turbo run db:stop --filter=databases -- supabase"
   },
   "devDependencies": {
     "prettier": "latest",
