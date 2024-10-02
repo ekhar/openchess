@@ -5,7 +5,8 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "target/**", "pkg/**"]
+      "outputs": [".next/**", "!.next/cache/**", "target/**", "pkg/**"],
+      "env": ["MASTER_DATABASE_URL"]
     },
     "lint": {
       "dependsOn": ["^lint"]
