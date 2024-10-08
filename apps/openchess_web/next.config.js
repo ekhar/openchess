@@ -1,19 +1,27 @@
-/**
- * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
- * for Docker builds.
- */
+// Import your environment configuration
 await import("./src/env.js");
 
 /** @type {import("next").NextConfig} */
 const coreConfig = {
-  images: {
-    remotePatterns: [{ hostname: "utfs.io" }],
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  webpack: (config, { isServer }) => {
+    // Enable .wasm file handling
+    config.experiments = { ...config.experiments, asyncWebAssembly: true };
+
+    // Add support for loading .wasm files in the browser environment
+    if (!isServer) {
+      config.module.rules.push({
+        test: /\.wasm$/,
+        type: "webassembly/async",
+      });
+    }
+
+    return config;
   },
 };
 

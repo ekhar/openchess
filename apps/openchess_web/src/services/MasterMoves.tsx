@@ -8,9 +8,9 @@ export async function master_moves(
 ): Promise<MastersApiResponse | undefined> {
   return unstable_cache(
     async () => {
-      const baseUrl = process.env.BACKEND_URL;
+      const baseUrl = process.env.MASTER_DATABASE_URL;
       if (!baseUrl) {
-        throw new Error("BACKEND_URL is not defined in environment variables");
+        throw new Error("MASTER_DATABASE_URL is not defined in environment variables");
       }
       const url = `${baseUrl}/masters?${new URLSearchParams({
         fen,

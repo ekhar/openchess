@@ -1,6 +1,6 @@
 "use server";
 export async function upload_games(username: string) {
-  const baseUrl = process.env.BACKEND_URL; // Access environment variable
+  const baseUrl = process.env.MASTER_DATABASE_URL; // Access environment variable
   const response = await fetch(`${baseUrl}/games/import`, {
     method: "POST",
     headers: {

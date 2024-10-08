@@ -1,7 +1,7 @@
 {
-  "name": "chess-compression-wasm",
+  "name": "@openchess/chess-compression-wasm",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "scripts": {
     "build": "wasm-pack build ../chess-compression --target web --out-dir ../chess-compression-wasm/pkg --verbose",
     "test": "wasm-pack test --node ../chess-compression"
@@ -10,5 +10,7 @@
     "pkg"
   ],
   "main": "pkg/chess_compression.js",
-  "types": "pkg/chess_compression.d.ts"
+  "module": "pkg/chess_compression.js",
+  "types": "pkg/chess_compression.d.ts",
+  "sideEffects": false
 }
