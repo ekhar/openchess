@@ -32,6 +32,24 @@
     },
     "db:revert": {
       "cache": false
+    },
+    "supabase:start": {
+      "cache": false
+    },
+    "supabase:stop": {
+      "cache": false
+    },
+    "supabase:reset": {
+      "cache": false
+    },
+    "supabase:migration:new": {
+      "cache": false
+    },
+    "supabase:migration:up": {
+      "cache": false
+    },
+    "supabase:studio": {
+      "cache": false
     }
   }
 }

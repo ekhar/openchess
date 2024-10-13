@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "migrate": "supabase db push",
-    "create": "supabase migration new",
-    "revert": "supabase db reset"
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "reset": "supabase db reset",
+    "migration:new": "supabase migration new",
+    "migration:up": "supabase db push --use-migra",
+    "studio": "supabase studio"
   },
   "devDependencies": {
     "supabase": "^1.8.1"
