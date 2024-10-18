@@ -90,3 +90,24 @@ CREATE FOREIGN TABLE positions_foreign (
 )
 SERVER master_chess_server
 OPTIONS (schema_name 'public', table_name 'positions');
+
+--create this table live_games it has id: UUID (primary key)
+-- created_at: Timestamp
+-- moves: Text array (to store the moves in PGN notation)
+-- players: JSONB (to store player info)
+-- status: enum (e.g., 'waiting', 'ongoing', 'finished')
+--
+--
+CREATE TYPE game_status AS ENUM (
+    'waiting',
+    'ongoing',
+    'finished'
+);
+CREATE TABLE live_games (
+    id UUID PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    moves TEXT[] NOT NULL,
+    players JSONB NOT NULL,
+    status game_status NOT NULL DEFAULT 'waiting'
+);
+
