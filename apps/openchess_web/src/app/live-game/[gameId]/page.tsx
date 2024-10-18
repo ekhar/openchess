@@ -1,21 +1,36 @@
-// app/game/[gameId]/page.tsx
+// pages/game/[gameId].tsx
 "use client";
+import React, { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import MultiBoard from "../_components/MultiBoard";
+import { supabase } from "@/utils/supabase/supabaseClient";
+import { v4 as uuidv4 } from "uuid";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-import { Chessboard } from "react-chessboard";
-import Chess from "chess.js";
+const GamePage = () => {
+  const router = useRouter();
+  const params = useParams();
+  const gameId = params.gameId as string;
 
-export default function GamePage() {
-  const { gameId } = useParams();
-  const [game, setGame] = useState(new Chess());
-  const [gameData, setGameData] = useState(null);
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true);
+  const [playerId, setPlayerId] = useState<string>("");
+  const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
+  const [gameExists, setGameExists] = useState<boolean>(false);
+  const [status, setStatus] = useState<"waiting" | "ongoing" | "finished">(
+    "waiting",
+  );
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Fetch game data from Supabase
-    const fetchGameData = async () => {
+    // Generate a unique player ID
+    let storedPlayerId = localStorage.getItem("playerId");
+    if (!storedPlayerId) {
+      storedPlayerId = uuidv4();
+      localStorage.setItem("playerId", storedPlayerId);
+    }
+    setPlayerId(storedPlayerId);
+  }, []);
+
+  useEffect(() => {
+    const fetchGame = async () => {
       const { data, error } = await supabase
         .from("live_games")
         .select("*")
@@ -23,85 +38,81 @@ export default function GamePage() {
         .single();
 
       if (error) {
-        console.error(error);
-      } else {
-        setGameData(data);
-        // Load moves into the game
-        if (data.moves && data.moves.length > 0) {
-          data.moves.forEach((move: string) => game.move(move));
-        }
+        console.error("Error fetching game:", error);
+        router.push("/");
+        return;
       }
+
+      if (data.status === "finished") {
+        alert("Game is already finished.");
+        router.push("/");
+        return;
+      }
+
+      setGameExists(true);
+      setStatus(data.status);
+
+      // Check if player is already in the game
+      const isWhite = data.players.white === playerId;
+      const isBlack = data.players.black === playerId;
+
+      if (!isWhite && !isBlack) {
+        // If game is waiting and black player slot is empty, join as black
+        if (data.status === "waiting" && data.players.black === null) {
+          const { error: updateError } = await supabase
+            .from("live_games")
+            .update({
+              players: { ...data.players, black: playerId },
+              status: "ongoing",
+            })
+            .eq("id", gameId);
+
+          if (updateError) {
+            console.error("Error joining game as black:", updateError);
+            router.push("/");
+            return;
+          }
+
+          setPlayerColor("black");
+          setStatus("ongoing");
+        } else {
+          alert("Game is full.");
+          router.push("/");
+          return;
+        }
+      } else {
+        // Player is already in the game
+        setPlayerColor(isWhite ? "white" : "black");
+        setStatus(data.status);
+      }
+
+      setLoading(false);
     };
 
-    fetchGameData();
-  }, [gameId]);
-
-  // Handle making a move
-  const onDrop = async (sourceSquare: string, targetSquare: string) => {
-    // Ignore if not player's turn
-    if (!isPlayerTurn) return false;
-
-    const move = game.move({
-      from: sourceSquare,
-      to: targetSquare,
-      promotion: "q", // Always promote to queen for simplicity
-    });
-
-    if (move === null) return false;
-
-    // Check if the new position exists in the database
-    const positionExists = await checkPositionExists(game.fen());
-    if (!positionExists) {
-      alert("Position does not exist in the database. You lose!");
-      // Update game status in the database
-      await updateGameStatus("finished");
-      return false;
+    if (playerId) {
+      fetchGame();
     }
+  }, [gameId, playerId, router]);
 
-    // Update moves in the database
-    await updateGameMoves(move.san);
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
-    // Switch turn
-    setIsPlayerTurn(false);
-
-    return true;
-  };
-
-  // Function to check if position exists in the database
-  const checkPositionExists = async (fen: string) => {
-    const { data, error } = await supabase.rpc("check_position_exists", {
-      fen,
-    });
-    if (error) {
-      console.error(error);
-      return false;
-    }
-    return data.exists;
-  };
-
-  // Function to update moves in the database
-  const updateGameMoves = async (sanMove: string) => {
-    const { data, error } = await supabase
-      .from("live_games")
-      .update({ moves: [...(gameData.moves || []), sanMove] })
-      .eq("id", gameId);
-
-    if (error) {
-      console.error(error);
-    } else {
-      setGameData(data[0]);
-    }
-  };
-
-  // Function to update game status
-  const updateGameStatus = async (status: string) => {
-    await supabase.from("live_games").update({ status }).eq("id", gameId);
-  };
+  if (!gameExists) {
+    return <div>Game not found.</div>;
+  }
 
   return (
     <div>
-      <h1>Chess Game ID: {gameId}</h1>
-      <Chessboard position={game.fen()} onPieceDrop={onDrop} />
+      <h1>Chess Game</h1>
+      <p>You are playing as {playerColor}</p>
+      <MultiBoard
+        gameId={gameId}
+        playerColor={playerColor}
+        playerId={playerId}
+      />
     </div>
   );
-}
+};
+
+export default GamePage;

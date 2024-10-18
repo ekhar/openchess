@@ -98,16 +98,39 @@ OPTIONS (schema_name 'public', table_name 'positions');
 -- status: enum (e.g., 'waiting', 'ongoing', 'finished')
 --
 --
+
 CREATE TYPE game_status AS ENUM (
     'waiting',
     'ongoing',
     'finished'
 );
+
+CREATE TYPE turn AS ENUM (
+    'white',
+    'black'
+);
+
 CREATE TABLE live_games (
     id UUID PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    moves TEXT[] NOT NULL,
+    current_position BYTEA NOT NULL DEFAULT E'\\x0000000000000000',
+    moves TEXT[] NOT NULL DEFAULT '{}',
+    turn turn NOT NULL DEFAULT 'white',
     players JSONB NOT NULL,
     status game_status NOT NULL DEFAULT 'waiting'
 );
 
+CREATE OR REPLACE FUNCTION check_position_exists(game_position BYTEA) 
+RETURNS BOOLEAN AS $$
+DECLARE
+    position_exists BOOLEAN;
+BEGIN
+    SELECT EXISTS(
+        SELECT 1 
+        FROM positions_foreign 
+        WHERE position = game_position
+    ) INTO position_exists;
+    
+    RETURN position_exists;
+END;
+$$ LANGUAGE plpgsql;

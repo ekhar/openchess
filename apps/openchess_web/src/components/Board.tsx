@@ -46,8 +46,8 @@ const Board = () => {
     if (currentMove > 0) {
       const previousMove = currentMove - 1;
       const previousFen = history[previousMove];
-      chess.load(previousFen);
-      setFen(previousFen);
+      chess.load(previousFen!);
+      setFen(previousFen!);
       setColor(previousMove % 2 === 0 ? "white" : "black");
       setCurrentMove(previousMove);
     }
@@ -57,8 +57,8 @@ const Board = () => {
     if (currentMove < history.length - 1) {
       const nextMove = currentMove + 1;
       const nextFen = history[nextMove];
-      chess.load(nextFen);
-      setFen(nextFen);
+      chess.load(nextFen!);
+      setFen(nextFen!);
       setColor(nextMove % 2 === 0 ? "white" : "black");
       setCurrentMove(nextMove);
     }

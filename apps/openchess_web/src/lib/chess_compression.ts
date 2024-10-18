@@ -17,7 +17,6 @@ export async function initializeWasm() {
     try {
       await init();
       isWasmInitialized = true;
-      console.log("WASM module initialized successfully.");
     } catch (error) {
       console.error("Failed to initialize WASM module:", error);
       throw error;
@@ -31,7 +30,6 @@ export async function compressPosition(
   try {
     await initializeWasm();
     const compressed = wasm_compress_position(fen);
-    console.log("Compression successful:", compressed);
     return compressed;
   } catch (error) {
     console.error("Compression failed:", error);
@@ -45,7 +43,6 @@ export async function decompressPosition(
   try {
     await initializeWasm();
     const decompressed = wasm_decompress_position(compressed);
-    console.log("Decompression successful:", decompressed);
     return decompressed;
   } catch (error) {
     console.error("Decompression failed:", error);
@@ -57,7 +54,6 @@ export async function compressPgn(moves: string): Promise<Uint8Array | null> {
   try {
     await initializeWasm();
     const compressed = wasm_compress_pgn(moves);
-    console.log("PGN Compression successful:", compressed);
     return compressed;
   } catch (error) {
     console.error("PGN Compression failed:", error);
@@ -72,7 +68,6 @@ export async function decompressPgn(
   try {
     await initializeWasm();
     const decompressed = wasm_decompress_pgn(compressed, plies);
-    console.log("PGN Decompression successful:", decompressed);
     return decompressed;
   } catch (error) {
     console.error("PGN Decompression failed:", error);
