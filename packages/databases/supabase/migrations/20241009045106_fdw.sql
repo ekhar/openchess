@@ -1,5 +1,11 @@
 -- Enable the postgres_fdw extension
 CREATE EXTENSION IF NOT EXISTS postgres_fdw;
+--Locally
+select vault.create_secret('host.docker.internal', 'fdw_host', 'fdw host');
+select vault.create_secret('5432', 'fdw_port', 'fdw port');
+select vault.create_secret('chess_database', 'fdw_dbname', 'fdw db name');
+select vault.create_secret('password', 'fdw_password', 'fdw password');
+select vault.create_secret('my_user', 'fdw_user', 'fdw user');
 
 -- Create the foreign server and user mapping with all details from vault
 DO $$

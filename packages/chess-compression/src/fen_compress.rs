@@ -354,6 +354,7 @@ mod tests {
         let position =
             Fen::from_ascii(fen_black_to_move.as_bytes())?.into_position(CastlingMode::Standard)?;
         let compressed = CompressedPosition::compress(&position);
+        println!("Compressed position: {:?}", compressed);
         let decompressed = CompressedPosition::decompress(&compressed)?;
         assert_eq!(position, decompressed);
         Ok(())
