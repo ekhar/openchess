@@ -8,20 +8,29 @@ import Navbar from "@/components/NavBar";
 export const metadata: Metadata = {
   title: "OpenChessAi",
   description: "Chess Opening AI",
+  icons: {
+    icon: [{ url: "/Mediamodifier-Design.svg", type: "image/svg+xml" }],
+  },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+type RootLayoutProps = {
+  children: React.ReactNode;
+};
+
+export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
   return (
-    <html lang="en" className={`${GeistSans.variable}`}>
-      <link rel="icon" href="/Mediamodifier-Design.svg" type="image/svg+xml" />
-      <body>
+    <html lang="en" className={GeistSans.variable} suppressHydrationWarning>
+      <body className="min-h-screen bg-background antialiased">
         <BoardInfoProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <div className="flex min-h-screen flex-col">
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <div className="relative flex min-h-screen flex-col">
               <Navbar />
-              <main className="flex-grow">{children}</main>
+              <main className="flex-1 flex-grow">{children}</main>
             </div>
           </ThemeProvider>
         </BoardInfoProvider>

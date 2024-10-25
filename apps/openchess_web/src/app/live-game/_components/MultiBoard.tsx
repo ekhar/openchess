@@ -73,7 +73,7 @@ const MultiBoard: React.FC<MultiBoardProps> = ({
   }, [gameId, chess]);
 
   useEffect(() => {
-    fetchGame();
+    fetchGame().catch((error) => console.error("Error fetching game:", error));
   }, [fetchGame]);
 
   // Real-time subscription
@@ -113,7 +113,9 @@ const MultiBoard: React.FC<MultiBoardProps> = ({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase
+        .removeChannel(channel)
+        .catch((error) => console.error("Error removing channel:", error));
     };
   }, [gameId, chess]);
 
@@ -147,7 +149,9 @@ const MultiBoard: React.FC<MultiBoardProps> = ({
     setCurrentMove(currentMove + 1);
 
     // Handle asynchronous database update
-    updateGameState(newFen, result.san);
+    updateGameState(newFen, result.san).catch((error) =>
+      console.error("Error updating game state:", error),
+    );
 
     return true;
   };
