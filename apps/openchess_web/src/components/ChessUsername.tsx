@@ -1,6 +1,8 @@
 "use client";
-// app/components/ChessUsername.tsx
-import { useFormState, useFormStatus } from "react-dom";
+
+import Form from "next/form";
+import { useFormStatus } from "react-dom";
+import { useActionState } from "react";
 import { uploadGames } from "@/actions/upload-games";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,7 +25,7 @@ function SubmitButton() {
 }
 
 export default function ChessUsername() {
-  const [state, formAction] = useFormState(uploadGames, initialState);
+  const [state, formAction] = useActionState(uploadGames, initialState);
   const { setUsername } = useBoardContext();
 
   if (state.success) {
@@ -31,7 +33,14 @@ export default function ChessUsername() {
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <Form
+      action={formAction}
+      className="space-y-4"
+      // The next/form component will automatically handle:
+      // 1. Prefetching when the form is in view
+      // 2. Client-side navigation on submission
+      // 3. Progressive enhancement if JavaScript hasn't loaded
+    >
       <div>
         <Input
           type="text"
@@ -49,6 +58,6 @@ export default function ChessUsername() {
         </div>
       )}
       {state.error && <p className="text-red-500">{state.error}</p>}
-    </form>
+    </Form>
   );
 }
