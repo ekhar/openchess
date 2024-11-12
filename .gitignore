@@ -46,3 +46,4 @@ build/
 # Turborepo
 .turbo
 node_modules
+.vercel
