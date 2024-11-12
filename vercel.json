@@ -1,4 +1,4 @@
 {
-  "buildCommand": "npm install -g wasm-pack && turbo run build --filter=openchess_web",
-  "installCommand": "npm install"
+  "buildCommand": "pnpm install -g wasm-pack && turbo run build --filter=openchess_web",
+  "installCommand": "pnpm install"
 }
