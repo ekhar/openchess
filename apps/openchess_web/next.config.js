@@ -8,7 +8,11 @@ const coreConfig = {
   },
   webpack: (config, { isServer }) => {
     // Enable .wasm file handling
-    config.experiments = { ...config.experiments, asyncWebAssembly: true };
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
 
     // Add support for loading .wasm files in the browser environment
     if (!isServer) {
