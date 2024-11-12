@@ -27,7 +27,8 @@
   },
   "devDependencies": {
     "prettier": "latest",
-    "turbo": "^2.2.3"
+    "turbo": "^2.2.3",
+    "wasm-pack": "^0.13.1"
   },
   "engines": {
     "node": ">=14.0.0"
