@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Board from "@/components/Board";
 import ChessUsername from "@/components/ChessUsername";
-import ChessStatsTable from "@/components/BarChart/ChessStatsTable";
 import { compressPosition, decompressPosition } from "@/lib/chess_compression";
 
 export default function HomePage() {
@@ -60,9 +59,7 @@ export default function HomePage() {
         <Board />
         <ChessUsername />
       </div>
-      <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center px-4 sm:px-6 lg:px-8">
-        <ChessStatsTable />
-      </div>
+      <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center px-4 sm:px-6 lg:px-8"></div>
     </main>
   );
 }

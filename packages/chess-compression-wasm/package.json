@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": false,
   "scripts": {
-    "build": "wasm-pack build ../chess-compression --target web --out-dir ../chess-compression-wasm/pkg --verbose",
+    "build": "wasm-pack build ../chess-compression --target bundler --out-dir ../chess-compression-wasm/pkg --verbose",
     "test": "wasm-pack test --node ../chess-compression"
   },
   "files": [
-    "pkg"
+    "pkg",
+    "pkg/*.wasm"
   ],
   "main": "pkg/chess_compression.js",
   "module": "pkg/chess_compression.js",

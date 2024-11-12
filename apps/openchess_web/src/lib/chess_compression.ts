@@ -1,33 +1,12 @@
-// chess_compress.ts
-import init, {
+import {
   wasm_compress_position,
   wasm_decompress_position,
   wasm_compress_pgn,
   wasm_decompress_pgn,
 } from "@openchess/chess-compression-wasm";
 
-var isWasmInitialized = false;
-
-/**
- * Initializes the WASM module.
- */
-export async function initializeWasm() {
-  if (!isWasmInitialized) {
-    try {
-      await init();
-      isWasmInitialized = true;
-    } catch (error) {
-      console.error("Failed to initialize WASM module:", error);
-      throw error;
-    }
-  }
-}
-
-export async function compressPosition(
-  fen: string,
-): Promise<Uint8Array | null> {
+export function compressPosition(fen: string): Uint8Array | null {
   try {
-    await initializeWasm();
     console.log("Compressing position:", fen);
     const compressed = wasm_compress_position(fen);
     return compressed;
@@ -37,11 +16,8 @@ export async function compressPosition(
   }
 }
 
-export async function decompressPosition(
-  compressed: Uint8Array,
-): Promise<string | null> {
+export function decompressPosition(compressed: Uint8Array): string | null {
   try {
-    await initializeWasm();
     const decompressed = wasm_decompress_position(compressed);
     return decompressed;
   } catch (error) {
@@ -50,9 +26,8 @@ export async function decompressPosition(
   }
 }
 
-export async function compressPgn(moves: string): Promise<Uint8Array | null> {
+export function compressPgn(moves: string): Uint8Array | null {
   try {
-    await initializeWasm();
     const compressed = wasm_compress_pgn(moves);
     return compressed;
   } catch (error) {
@@ -61,12 +36,11 @@ export async function compressPgn(moves: string): Promise<Uint8Array | null> {
   }
 }
 
-export async function decompressPgn(
+export function decompressPgn(
   compressed: Uint8Array,
   plies: number,
-): Promise<string | null> {
+): string | null {
   try {
-    await initializeWasm();
     const decompressed = wasm_decompress_pgn(compressed, plies);
     return decompressed;
   } catch (error) {

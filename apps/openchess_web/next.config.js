@@ -6,6 +6,7 @@ const coreConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
   webpack: (config, { isServer }) => {
     // Enable .wasm file handling
     config.experiments = {
