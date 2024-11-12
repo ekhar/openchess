@@ -6,9 +6,6 @@ const coreConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   webpack: (config, { isServer }) => {
     // Enable .wasm file handling
     config.experiments = { ...config.experiments, asyncWebAssembly: true };

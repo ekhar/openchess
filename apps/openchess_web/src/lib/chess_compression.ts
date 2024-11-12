@@ -1,5 +1,4 @@
 // chess_compress.ts
-
 import init, {
   wasm_compress_position,
   wasm_decompress_position,
@@ -7,7 +6,7 @@ import init, {
   wasm_decompress_pgn,
 } from "@openchess/chess-compression-wasm";
 
-let isWasmInitialized = false;
+var isWasmInitialized = false;
 
 /**
  * Initializes the WASM module.
@@ -29,6 +28,7 @@ export async function compressPosition(
 ): Promise<Uint8Array | null> {
   try {
     await initializeWasm();
+    console.log("Compressing position:", fen);
     const compressed = wasm_compress_position(fen);
     return compressed;
   } catch (error) {
