@@ -10,6 +10,7 @@ mod enums;
 use chess_compression::{CompressedPosition, Encoder, EncoderError};
 use dotenv::dotenv;
 use enums::*;
+//
 // Define a struct to represent a row in the games table
 #[derive(Debug, Clone, Default, sqlx::FromRow)]
 struct Game {

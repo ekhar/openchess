@@ -3,11 +3,16 @@ name = "master-import"
 version = "0.1.0"
 edition = "2021"
 
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+
+
 [dependencies]
 chess-compression = { path = "../../packages/chess-compression" }
 shakmaty = "0.27"
 pgn-reader = "0.26"
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.4", features = ["macros", "rt-multi-thread"] }
 btoi = "0.4"
 time = "0.3"
 chrono = "0.4"
