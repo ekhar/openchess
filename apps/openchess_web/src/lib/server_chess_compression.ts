@@ -1,4 +1,6 @@
-const wasm_mod = await import("@openchess/chess-compression-wasm");
+// server_chess_compression.ts
+
+import * as wasm_mod from "@openchess/chess-compression-wasm/pkg/node";
 
 export function compressPosition(fen: string): Uint8Array | null {
   try {

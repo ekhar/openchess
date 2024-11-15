@@ -5,7 +5,7 @@ import ChessUsername from "@/components/ChessUsername";
 import {
   compressPosition,
   decompressPosition,
-} from "@/lib/chess_compression_client";
+} from "@/lib/client_chess_compression";
 
 export default function HomePage() {
   const [testResult, setTestResult] = useState<string | null>(null);

@@ -3,7 +3,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
 import { Chess } from "chess.js";
-import { compressPosition, decompressPgn } from "@/lib/chess_compression";
+import {
+  compressPosition,
+  decompressPgn,
+} from "@/lib/server_chess_compression";
 import { type Database } from "@/types/database.types";
 import { type MastersApiResponse } from "@/types/MasterApi";
 import { supabase } from "@/utils/supabase/supabaseClient";
