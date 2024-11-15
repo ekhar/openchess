@@ -9,8 +9,9 @@
   ],
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
+    "dev": "turbo dev --parallel",
     "test": "turbo test",
+    "start": "turbo start",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "db:chess-games:migrate": "turbo run db:migrate --filter=databases -- chess-games",

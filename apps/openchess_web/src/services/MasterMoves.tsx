@@ -6,6 +6,7 @@ import { Chess } from "chess.js";
 import { compressPosition, decompressPgn } from "@/lib/chess_compression";
 import { type Database } from "@/types/database.types";
 import { type MastersApiResponse } from "@/types/MasterApi";
+import { supabase } from "@/utils/supabase/supabaseClient";
 
 // Initialize the Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -129,7 +130,7 @@ export async function master_movestest(
         const chess = new Chess();
         for (let i = 0; i < moveNumber; i++) {
           const sanMove = moves[i];
-          const moveResult = chess.move(sanMove);
+          const moveResult = chess.move("");
           if (moveResult === null) {
             console.error(
               `Invalid move ${sanMove} at move ${i} in game ${gameId}`,

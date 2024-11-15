@@ -20,7 +20,7 @@ export default function MasterStats({ fen }: MasterStatsProps) {
     if (fen) {
       try {
         const masterData = await master_moves(fen);
-        setMasterStatsData(masterData);
+        // setMasterStatsData(masterData);
       } catch (error) {
         console.error("Error fetching master data:", error);
       }
