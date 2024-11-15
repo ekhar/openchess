@@ -13,11 +13,7 @@
     "noUncheckedIndexedAccess": true,
     "checkJs": true,
     /* Bundled projects */
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "ES2022"
-    ],
+    "lib": ["dom", "dom.iterable", "ES2022"],
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -31,20 +27,13 @@
     /* Path Aliases */
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@/ui/*": [
-        "./src/components/ui/*"
-      ],
+      "@wasm/*": ["../../packages/chess-compression-wasm/pkg/*"],
+      "@/*": ["./src/*"],
+      "@/ui/*": ["./src/components/ui/*"],
       // "@/components/*": ["./src/components/*"],
       // "@lib/*": ["./src/lib/*"],
-      "@/analytics/*": [
-        "./src/app/_analytics/*"
-      ],
-      "@/hooks/*": [
-        "./src/hooks/*"
-      ]
+      "@/analytics/*": ["./src/app/_analytics/*"],
+      "@/hooks/*": ["./src/hooks/*"]
     }
   },
   "include": [
@@ -56,8 +45,5 @@
     "**/*.js",
     ".next/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "supabase/*"
-  ]
+  "exclude": ["node_modules", "supabase/*"]
 }

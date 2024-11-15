@@ -8,10 +8,10 @@
     "databases/*"
   ],
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "test": "turbo run test",
-    "lint": "turbo run lint",
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "test": "turbo test",
+    "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "db:chess-games:migrate": "turbo run db:migrate --filter=databases -- chess-games",
     "db:chess-games:create": "turbo run db:create --filter=databases -- chess-games",
@@ -27,7 +27,8 @@
   },
   "devDependencies": {
     "prettier": "latest",
-    "turbo": "^2.2.3"
+    "turbo": "^2.2.3",
+    "wasm-pack": "^0.13.1"
   },
   "engines": {
     "node": ">=14.0.0"

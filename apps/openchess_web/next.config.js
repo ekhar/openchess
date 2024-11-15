@@ -15,13 +15,13 @@ const coreConfig = {
       layers: true,
     };
 
-    // Add support for loading .wasm files in the browser environment
-    if (!isServer) {
-      config.module.rules.push({
-        test: /\.wasm$/,
-        type: "webassembly/async",
-      });
-    }
+    // // Add support for loading .wasm files in the browser environment
+    // if (!isServer) {
+    //   config.module.rules.push({
+    //     test: /\.wasm$/,
+    //     type: "webassembly/async",
+    //   });
+    // }
 
     return config;
   },

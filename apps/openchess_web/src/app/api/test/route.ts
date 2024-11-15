@@ -7,7 +7,7 @@ export async function GET() {
     const startingFen =
       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-    const compressed = await compressPosition(startingFen);
+    const compressed = compressPosition(startingFen);
     if (!compressed) {
       return NextResponse.json(
         { error: "Compression failed" },
@@ -15,7 +15,7 @@ export async function GET() {
       );
     }
 
-    const decompressed = await decompressPosition(compressed);
+    const decompressed = decompressPosition(compressed);
     if (!decompressed) {
       return NextResponse.json(
         { error: "Decompression failed" },

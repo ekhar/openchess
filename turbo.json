@@ -8,6 +8,12 @@
       "outputs": [".next/**", "!.next/cache/**", "target/**", "pkg/**"],
       "env": ["MASTER_DATABASE_URL"]
     },
+    "start": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+
+
     "lint": {
       "dependsOn": ["^lint"]
     },
@@ -18,38 +24,6 @@
     "dev": {
       "cache": false,
       "persistent": true
-    },
-    "wasm:build": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**/*.rs", "Cargo.toml"],
-      "outputs": ["pkg/**"]
-    },
-    "db:migrate": {
-      "cache": false
-    },
-    "db:create": {
-      "cache": false
-    },
-    "db:revert": {
-      "cache": false
-    },
-    "supabase:start": {
-      "cache": false
-    },
-    "supabase:stop": {
-      "cache": false
-    },
-    "supabase:reset": {
-      "cache": false
-    },
-    "supabase:migration:new": {
-      "cache": false
-    },
-    "supabase:migration:up": {
-      "cache": false
-    },
-    "supabase:studio": {
-      "cache": false
     }
   }
 }

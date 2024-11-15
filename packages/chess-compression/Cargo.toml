@@ -26,5 +26,4 @@ js-sys = "0.3.70"
 wasm-bindgen-test = "0.3.34"
 
 [profile.release]
-opt-level = 3
-lto = true
+strip = true
