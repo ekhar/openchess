@@ -1,49 +1,23 @@
 {
+  "extends": "@openchess/typescript-config/nextjs.json",
   "compilerOptions": {
-    /* Base Options: */
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "target": "es2022",
-    "allowJs": true,
-    "resolveJsonModule": true,
-    "moduleDetection": "force",
-    "isolatedModules": true,
-    /* Strictness */
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "checkJs": true,
-    /* Bundled projects */
-    "lib": ["dom", "dom.iterable", "ES2022"],
-    "noEmit": true,
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "jsx": "preserve",
     "plugins": [
       {
         "name": "next"
       }
-    ],
-    "incremental": true,
-    /* Path Aliases */
-    "baseUrl": ".",
-    "paths": {
-      "@wasm/*": ["../../packages/chess-compression-wasm/pkg/*"],
-      "@/*": ["./src/*"],
-      "@/ui/*": ["./src/components/ui/*"],
-      // "@/components/*": ["./src/components/*"],
-      // "@lib/*": ["./src/lib/*"],
-      "@/analytics/*": ["./src/app/_analytics/*"],
-      "@/hooks/*": ["./src/hooks/*"]
-    }
+    ]
+  },
+  "paths": {
+    "@wasm/*": "../../packages/chess-compression-wasm/pkg/*"
   },
   "include": [
-    ".eslintrc.cjs",
-    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "**/*.cjs",
-    "**/*.js",
+    "next-env.d.ts",
+    "next.config.js",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "supabase/*"]
+  "exclude": [
+    "node_modules"
+  ]
 }

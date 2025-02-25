@@ -1,6 +1,8 @@
+// filename: apps/openchess_web/src/app/page.tsx
 import Board from "@/components/Board";
 import ChessUsername from "@/components/ChessUsername";
 import ChessStatsTable from "@/components/BarChart/ChessStatsTable";
+
 export default function HomePage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b">

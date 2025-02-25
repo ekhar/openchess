@@ -1,0 +1,5 @@
+- fdw working for games
+- edge function searching working for fuzzy searching
+- llm integration into stockfish for verbal explanations
+- Play angainst friends
+- Play and practice moves in line with GM's, world championships, or specific players

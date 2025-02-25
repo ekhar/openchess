@@ -1,5 +1,6 @@
 -- Enable the postgres_fdw extension
 CREATE EXTENSION IF NOT EXISTS postgres_fdw;
+
 --Locally
 select vault.create_secret('host.docker.internal', 'fdw_host', 'fdw host');
 select vault.create_secret('5432', 'fdw_port', 'fdw port');
@@ -91,14 +92,6 @@ CREATE FOREIGN TABLE positions_foreign (
 SERVER master_chess_server
 OPTIONS (schema_name 'public', table_name 'positions');
 
---create this table live_games it has id: UUID (primary key)
--- created_at: Timestamp
--- moves: Text array (to store the moves in PGN notation)
--- players: JSONB (to store player info)
--- status: enum (e.g., 'waiting', 'ongoing', 'finished')
---
---
-
 CREATE TYPE game_status AS ENUM (
     'waiting',
     'ongoing',
@@ -134,3 +127,56 @@ BEGIN
     RETURN position_exists;
 END;
 $$ LANGUAGE plpgsql;
+
+-- === Add Read-only Permissions ===
+
+-- Create read-only role
+CREATE ROLE chess_reader;
+
+-- Grant schema usage
+GRANT USAGE ON SCHEMA public TO chess_reader;
+GRANT USAGE ON SCHEMA vault TO chess_reader;
+
+-- Grant read permissions on foreign tables
+GRANT SELECT ON games_foreign TO chess_reader;
+GRANT SELECT ON positions_foreign TO chess_reader;
+
+-- Grant read permissions on live_games
+GRANT SELECT ON live_games TO chess_reader;
+
+-- Grant execute permission on functions
+GRANT EXECUTE ON FUNCTION check_position_exists TO chess_reader;
+GRANT SELECT ON vault.decrypted_secrets TO chess_reader;
+
+-- Grant usage on custom types
+GRANT USAGE ON TYPE result TO chess_reader;
+GRANT USAGE ON TYPE chess_speed TO chess_reader;
+GRANT USAGE ON TYPE game_status TO chess_reader;
+GRANT USAGE ON TYPE turn TO chess_reader;
+
+-- Create helper function to manage reader access
+CREATE OR REPLACE FUNCTION public.add_chess_reader(username text)
+RETURNS void AS $$
+BEGIN
+    -- Create user mapping for the new reader
+    EXECUTE format('
+        CREATE USER MAPPING FOR %I
+        SERVER master_chess_server
+        OPTIONS (
+            user %L,
+            password %L
+        )', username, current_setting('app.fdw_user'), current_setting('app.fdw_password')
+    );
+    
+    -- Grant role
+    EXECUTE format('GRANT chess_reader TO %I', username);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Explicitly revoke write permissions
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON games_foreign FROM chess_reader;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON positions_foreign FROM chess_reader;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON live_games FROM chess_reader;
+
+-- Additional FDW-specific permissions
+GRANT USAGE ON FOREIGN SERVER master_chess_server TO chess_reader;

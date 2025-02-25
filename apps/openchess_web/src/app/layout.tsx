@@ -1,3 +1,4 @@
+// filename: apps/openchess_web/src/app/layout.tsx
 import "@/styles/globals.css";
 import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";

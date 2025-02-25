@@ -1,3 +1,4 @@
+// filename: apps/openchess_web/src/app/test/page.tsx
 "use client";
 import { useState, useEffect } from "react";
 import Board from "@/components/Board";

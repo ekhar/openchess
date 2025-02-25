@@ -1,3 +1,4 @@
+// filename: apps/openchess_web/next.config.js
 // Import your environment configuration
 // await import("./src/env.js");
 
