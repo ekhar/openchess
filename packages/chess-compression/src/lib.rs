@@ -1,3 +1,4 @@
+// filename: packages/chess-compression/src/lib.rs
 //! Chess compression library
 //!
 //! This library provides functionality for compressing and decompressing

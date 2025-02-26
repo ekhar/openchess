@@ -1,3 +1,4 @@
+// filename: packages/chess-compression/src/wasm.rs
 use std::str::FromStr;
 
 use crate::{compress_pgn, compress_position, decompress_pgn, decompress_position};

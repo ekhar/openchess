@@ -1,0 +1,20 @@
+{
+  "name": "@openchess/chesspgn-extractor",
+  "version": "0.1.0",
+  "private": false,
+  "description": "WebAssembly module for extracting Chess.com PGN data",
+  "scripts": {
+    "build:deno": "wasm-pack build ../chesspgn-extractor --target deno --out-dir pkg/deno --release --verbose",
+    "copy:wasm": "cp -r pkg/deno/* ../../apps/supabase/functions/shared/chesspgn-extractor/",
+    "build": "pnpm run build:deno && pnpm run copy:wasm",
+    "test": "wasm-pack test --node ../chesspgn-extractor"
+  },
+  "files": [
+    "pkg/deno"
+  ],
+  "main": "pkg/deno/chess_pgn_extractor.js",
+  "types": "pkg/deno/chess_pgn_extractor.d.ts",
+  "sideEffects": [
+    "pkg/deno/*.js"
+  ]
+}
