@@ -1,14 +1,20 @@
 {
   "extends": "@openchess/typescript-config/nextjs.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "plugins": [
       {
         "name": "next"
       }
-    ]
-  },
-  "paths": {
-    "@wasm/*": "../../packages/chess-compression-wasm/pkg/*"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@wasm/*": [
+        "../../packages/chess-compression-wasm/pkg/*"
+      ]
+    }
   },
   "include": [
     "**/*.ts",
