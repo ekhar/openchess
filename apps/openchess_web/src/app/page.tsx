@@ -5,7 +5,7 @@ import ChessStatsTable from "@/components/BarChart/ChessStatsTable";
 
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-linear-to-b">
       <h1 className="mb-8 text-center text-4xl font-bold">Database Explorer</h1>
       <div className="flex flex-row items-center justify-center space-y-4 md:flex-row md:space-x-8 md:space-y-0">
         <Board />

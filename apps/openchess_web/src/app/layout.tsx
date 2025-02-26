@@ -31,7 +31,7 @@ export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
           >
             <div className="relative flex min-h-screen flex-col">
               <Navbar />
-              <main className="flex-1 flex-grow">{children}</main>
+              <main className="flex-1 grow">{children}</main>
             </div>
           </ThemeProvider>
         </BoardInfoProvider>

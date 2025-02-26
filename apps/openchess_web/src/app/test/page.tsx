@@ -42,7 +42,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-linear-to-b">
       <h1 className="mb-8 text-center text-4xl font-bold">OpenChess AI</h1>
       {/* WASM Test Result */}
       <div className="mb-8 text-center">

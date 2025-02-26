@@ -24,6 +24,8 @@ const nextConfig = {
     // Remove client-side .wasm handling if not needed
     return config;
   },
+  plugins: [
+  ],
 };
 
 export default nextConfig;

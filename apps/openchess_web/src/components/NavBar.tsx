@@ -9,7 +9,7 @@ const Navbar = () => {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <Link href="/" className="flex flex-shrink-0 items-center">
+            <Link href="/" className="flex shrink-0 items-center">
               <img
                 src="/Mediamodifier-Design.svg"
                 alt="OpenChess AI Logo"
