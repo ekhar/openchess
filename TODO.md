@@ -1,4 +1,6 @@
 - fdw working for games
+- Stats tables
+- player imports from deno?
 - edge function searching working for fuzzy searching
 - llm integration into stockfish for verbal explanations
 - Play angainst friends
