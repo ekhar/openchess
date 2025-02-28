@@ -33,12 +33,6 @@
         "^lint"
       ]
     },
-    "supabase-functions#build": {
-      "dependsOn": [
-        "@openchess/chess-compression-wasm#build",
-        "@openchess/chesspgn-extractor#build"
-      ]
-    },
     "test": {
       "dependsOn": [
         "^build"

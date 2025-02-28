@@ -2,11 +2,6 @@
   "name": "openchess",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*",
-    "databases/*"
-  ],
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev --parallel",
@@ -16,18 +11,11 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "db:chess-games:migrate": "turbo run db:migrate --filter=databases -- chess-games",
     "db:chess-games:create": "turbo run db:create --filter=databases -- chess-games",
-    "db:chess-games:revert": "turbo run db:revert --filter=databases -- chess-games",
-    "db:supabase:push": "turbo run db:push --filter=databases -- supabase",
-    "db:supabase:reset": "turbo run db:reset --filter=databases -- supabase",
-    "db:supabase:pull": "turbo run db:pull --filter=databases -- supabase",
-    "db:supabase:diff": "turbo run db:diff --filter=databases -- supabase",
-    "db:supabase:new": "turbo run db:new --filter=databases -- supabase",
-    "db:supabase:link": "turbo run db:link --filter=databases -- supabase",
-    "db:supabase:start": "turbo run db:start --filter=databases -- supabase",
-    "db:supabase:stop": "turbo run db:stop --filter=databases -- supabase"
+    "db:chess-games:revert": "turbo run db:revert --filter=databases -- chess-games"
   },
   "devDependencies": {
     "prettier": "^3.5.0",
+    "supabase": "^2.15.8",
     "turbo": "^2.4.3",
     "typescript": "5.7.3",
     "wasm-pack": "^0.13.1"
