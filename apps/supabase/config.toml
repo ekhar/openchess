@@ -274,6 +274,11 @@ inspector_port = 8083
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/MY_FUNCTION_NAME/*.html" ]
+[functions.import-user-games]
+static_files = ["./functions/shared/chesspgn-extractor/*"]
+
+[functions.wasm-add]
+static_files = ["./functions/wasm-add/add-wasm/pkg/*"]
 
 [analytics]
 enabled = true

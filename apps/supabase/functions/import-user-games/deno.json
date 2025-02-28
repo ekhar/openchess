@@ -1,3 +1,5 @@
 {
-  "imports": {}
+  "imports": {
+    "@chess_pgn_retriever": "../shared/chesspgn-extractor/chess_pgn_retriever.js"
+  }
 }
