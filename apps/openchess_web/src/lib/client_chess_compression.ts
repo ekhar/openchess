@@ -1,4 +1,4 @@
-// chess_compression_client.ts
+// filename: apps/openchess_web/src/lib/client_chess_compression.ts
 import wbgInit, {
   InitOutput,
   wasm_compress_position,

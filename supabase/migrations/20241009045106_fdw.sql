@@ -200,3 +200,4 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON live_games FROM chess_reader;
 
 -- Additional FDW-specific permissions
 GRANT USAGE ON FOREIGN SERVER master_chess_server TO chess_reader;
+ GRANT chess_reader TO anon;

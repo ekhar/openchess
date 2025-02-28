@@ -1,9 +1,9 @@
-// utils/supabase/supabaseServer.ts
+// filename: apps/openchess_web/src/utils/supabase/supabaseServer.ts
 import { createServerClient } from "@supabase/ssr";
-import { cookies, type UnsafeUnwrappedCookies } from "next/headers";
+import { cookies } from "next/headers";
 
-export function createClient() {
-  const cookieStore = (cookies() as unknown as UnsafeUnwrappedCookies);
+export const createClient = async () => {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,11 +15,11 @@ export function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
-          } catch {
-            // The `setAll` method was called from a Server Component.
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch (error) {
+            // The `set` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing
             // user sessions.
           }
@@ -27,4 +27,4 @@ export function createClient() {
       },
     },
   );
-}
+};
