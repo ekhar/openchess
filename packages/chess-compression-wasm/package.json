@@ -3,20 +3,20 @@
   "version": "0.1.0",
   "private": false,
   "scripts": {
-    "build:client": "wasm-pack build ../chess-compression --target web --out-dir pkg/web --release --verbose",
-    "build:server": "wasm-pack build ../chess-compression --target nodejs --out-dir pkg/node --release --verbose",
-    "build": "npm run build:client && npm run build:server",
-    "test": "wasm-pack test --node ../chess-compression"
+    "build:client": "wasm-pack build ../chess-compression --target web --out-dir ../chess-compression-wasm/pkg/web --release --verbose",
+    "build:server": "wasm-pack build ../chess-compression --target deno --out-dir ../chess-compression-wasm/pkg/deno --release --verbose",
+    "build": "pnpm run build:client && pnpm run build:server",
+    "test": "wasm-pack test --deno ../chess-compression"
   },
   "files": [
-    "pkg/node",
+    "pkg/deno",
     "pkg/web"
   ],
-  "main": "pkg/node/chess_compression.js",
+  "main": "pkg/deno/chess_compression.js",
   "browser": "pkg/web/chess_compression.js",
   "types": "pkg/web/chess_compression.d.ts",
   "sideEffects": [
-    "pkg/node/*.js",
+    "pkg/deno/*.js",
     "pkg/web/*.js"
   ]
 }
