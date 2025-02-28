@@ -1,8 +1,14 @@
 # Dependencies
 node_modules/
 
-# WASM
+# WASM - Use more specific patterns
 pkg/
+# But explicitly include the chess-compression-wasm pkg directories and their contents
+!packages/chess-compression-wasm/pkg/
+!packages/chess-compression-wasm/pkg/deno/
+!packages/chess-compression-wasm/pkg/deno/**
+!packages/chess-compression-wasm/pkg/web/
+!packages/chess-compression-wasm/pkg/web/**
 
 # Next.js
 .next/

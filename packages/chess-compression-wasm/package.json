@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": false,
   "scripts": {
-    "build:client": "wasm-pack build ../chess-compression --target web --out-dir ../chess-compression-wasm/pkg/web --release --verbose",
-    "build:server": "wasm-pack build ../chess-compression --target deno --out-dir ../chess-compression-wasm/pkg/deno --release --verbose",
-    "build": "pnpm run build:client && pnpm run build:server",
+    "build:client": "wasm-pack build ../chess-compression --no-pack --target web --out-dir ../chess-compression-wasm/pkg/web --release --verbose && rm -f pkg/web/.gitignore",
+    "build:server": "wasm-pack build ../chess-compression --no-pack --target deno --out-dir ../chess-compression-wasm/pkg/deno --release --verbose",
+    "build:wasm": "pnpm run build:client && pnpm run build:server",
+    "build": "if [ \"$VERCEL\" = \"1\" ]; then echo \"Skipping WASM compilation on Vercel\"; else pnpm run build:wasm; fi",
     "test": "wasm-pack test --deno ../chess-compression"
   },
   "files": [

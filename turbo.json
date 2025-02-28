@@ -3,24 +3,50 @@
   "ui": "tui",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "target/**", "pkg/**"],
-      "env": ["MASTER_DATABASE_URL"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "target/**",
+        "pkg/**"
+      ],
+      "env": [
+        "MASTER_DATABASE_URL"
+      ]
     },
     "start": {
-      "dependsOn": ["build"],
+      "dependsOn": [
+        "build"
+      ],
       "outputs": [],
       "cache": true,
       "persistent": true
     },
-
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": [
+        "^lint"
+      ]
+    },
+    "supabase-functions#build": {
+      "dependsOn": [
+        "@openchess/chess-compression-wasm#build",
+        "@openchess/chesspgn-extractor#build"
+      ]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**/*.rs", "Cargo.toml"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**/*.rs",
+        "Cargo.toml"
+      ]
     },
     "dev": {
       "cache": false,
