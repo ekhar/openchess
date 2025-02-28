@@ -1,13 +1,6 @@
 -- Enable the postgres_fdw extension
 CREATE EXTENSION IF NOT EXISTS postgres_fdw;
 
---Locally
-select vault.create_secret('host.docker.internal', 'fdw_host', 'fdw host');
-select vault.create_secret('5432', 'fdw_port', 'fdw port');
-select vault.create_secret('postgres', 'fdw_dbname', 'fdw db name');
-select vault.create_secret('9789', 'fdw_password', 'fdw password');
-select vault.create_secret('admin', 'fdw_user', 'fdw user');
-
 -- Create the foreign server and user mapping with all details from vault
 DO $$
 DECLARE
@@ -200,4 +193,3 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON live_games FROM chess_reader;
 
 -- Additional FDW-specific permissions
 GRANT USAGE ON FOREIGN SERVER master_chess_server TO chess_reader;
- GRANT chess_reader TO anon;
