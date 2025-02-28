@@ -113,25 +113,33 @@ CREATE TABLE live_games (
     status game_status NOT NULL DEFAULT 'waiting'
 );
 
-CREATE OR REPLACE FUNCTION check_position_exists(game_position BYTEA) 
+-- Create read-only role
+CREATE ROLE chess_reader;
+-- Create the function with an explicitly set search_path AT THE FUNCTION LEVEL
+CREATE OR REPLACE FUNCTION public.check_position_exists(game_position BYTEA) 
 RETURNS BOOLEAN AS $$
 DECLARE
     position_exists BOOLEAN;
 BEGIN
+    -- Setting search_path inside the function is good, but not sufficient
+    -- The important part is the SET search_path = '' in the function definition below
+    
     SELECT EXISTS(
         SELECT 1 
-        FROM positions_foreign 
+        FROM public.positions_foreign 
         WHERE position = game_position
     ) INTO position_exists;
     
     RETURN position_exists;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+   SET search_path = '';  -- This is the critical security setting
+
+-- Re-grant permissions after recreating the function
+GRANT EXECUTE ON FUNCTION public.check_position_exists TO chess_reader;
 
 -- === Add Read-only Permissions ===
 
--- Create read-only role
-CREATE ROLE chess_reader;
 
 -- Grant schema usage
 GRANT USAGE ON SCHEMA public TO chess_reader;
@@ -158,6 +166,9 @@ GRANT USAGE ON TYPE turn TO chess_reader;
 CREATE OR REPLACE FUNCTION public.add_chess_reader(username text)
 RETURNS void AS $$
 BEGIN
+    -- Explicitly set search_path to empty to prevent search path injection
+    SET LOCAL search_path TO '';
+    
     -- Create user mapping for the new reader
     EXECUTE format('
         CREATE USER MAPPING FOR %I
@@ -171,7 +182,16 @@ BEGIN
     -- Grant role
     EXECUTE format('GRANT chess_reader TO %I', username);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   SET search_path = '';  -- Additional protection at function level
+
+-- Revoke execute permission from PUBLIC to restrict access
+REVOKE EXECUTE ON FUNCTION public.add_chess_reader FROM PUBLIC;
+
+-- Grant execute permission only to specific roles that should be able to add readers
+-- For example, only allow database admins to execute this function:
+GRANT EXECUTE ON FUNCTION public.add_chess_reader TO postgres;
 
 -- Explicitly revoke write permissions
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON games_foreign FROM chess_reader;
