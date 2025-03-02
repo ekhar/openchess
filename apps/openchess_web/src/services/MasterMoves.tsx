@@ -37,13 +37,25 @@ export async function master_moves(fen: string): Promise<MastersApiResponse | un
     const binaryString = Array.from(compressed).map(byte => String.fromCharCode(byte)).join('');
     const base64Encoded = btoa(binaryString);
 
-    console.log("Position compressed successfully");
+    console.log("Position compressed successfully", compressed);
 
     // Step 2: Query positions where the compressed position matches
     const { data: positions, error: positionsError } = await supabase
       .from("positions_foreign")
       .select("game_id, move_number")
-      .eq("position", base64Encoded);
+      .eq("position", base64Encoded).limit(100);
+    if (positionsError) {
+      console.error("Error querying positions:", positionsError);
+      return undefined;
+    }
+
+    if (!positions || positions.length === 0) {
+      console.log("No matching positions found");
+      return { games: [], moves: [] };
+    }
+
+    console.log(`Found ${positions.length} matching positions`);
+    console.log("Positions queried successfully", positions);
 
     if (positionsError) {
       console.error("Error querying positions:", positionsError);

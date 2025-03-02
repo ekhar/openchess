@@ -1,0 +1,148 @@
+NOTICE:  table "unique_positions" does not exist, skipping
+DROP TABLE
+DROP TABLE
+NOTICE:  table "game_positions" does not exist, skipping
+NOTICE:  table "migration_progress" does not exist, skipping
+DROP TABLE
+CREATE TABLE
+INSERT 0 1
+INSERT 0 1
+CREATE TABLE
+CREATE INDEX
+CREATE TABLE
+NOTICE:  Creating partitions up to game ID 14080719
+DO
+UPDATE 1
+INSERT 0 1
+CREATE PROCEDURE
+NOTICE:  Starting to process 676323378 positions (max ID: 676323378)
+NOTICE:  Starting batch 1 (1 to 5000000)
+NOTICE:  Processing positions from ID 1 to 5000000
+NOTICE:  Processed 3226349 unique positions from IDs 1 to 5000000
+NOTICE:  Completed batch 1. Total unique positions so far: 3226349
+NOTICE:  Starting batch 2 (5000001 to 10000000)
+NOTICE:  Processing positions from ID 5000001 to 10000000
+NOTICE:  Processed 3370558 unique positions from IDs 5000001 to 10000000
+NOTICE:  Completed batch 2. Total unique positions so far: 6428927
+NOTICE:  Starting batch 3 (10000001 to 15000000)
+NOTICE:  Processing positions from ID 10000001 to 15000000
+NOTICE:  Processed 3538638 unique positions from IDs 10000001 to 15000000
+NOTICE:  Completed batch 3. Total unique positions so far: 9760968
+NOTICE:  Starting batch 4 (15000001 to 20000000)
+NOTICE:  Processing positions from ID 15000001 to 20000000
+NOTICE:  Processed 3540760 unique positions from IDs 15000001 to 20000000
+NOTICE:  Completed batch 4. Total unique positions so far: 13020800
+NOTICE:  Starting batch 5 (20000001 to 25000000)
+NOTICE:  Processing positions from ID 20000001 to 25000000
+NOTICE:  Processed 3543894 unique positions from IDs 20000001 to 25000000
+NOTICE:  Completed batch 5. Total unique positions so far: 16232569
+NOTICE:  Starting batch 6 (25000001 to 30000000)
+NOTICE:  Processing positions from ID 25000001 to 30000000
+NOTICE:  Processed 3521936 unique positions from IDs 25000001 to 30000000
+NOTICE:  Completed batch 6. Total unique positions so far: 19383522
+NOTICE:  Starting batch 7 (30000001 to 35000000)
+NOTICE:  Processing positions from ID 30000001 to 35000000
+NOTICE:  Processed 3554839 unique positions from IDs 30000001 to 35000000
+NOTICE:  Completed batch 7. Total unique positions so far: 22539369
+NOTICE:  Starting batch 8 (35000001 to 40000000)
+NOTICE:  Processing positions from ID 35000001 to 40000000
+NOTICE:  Processed 3563455 unique positions from IDs 35000001 to 40000000
+NOTICE:  Completed batch 8. Total unique positions so far: 25685376
+NOTICE:  Starting batch 9 (40000001 to 45000000)
+NOTICE:  Processing positions from ID 40000001 to 45000000
+NOTICE:  Processed 3573893 unique positions from IDs 40000001 to 45000000
+NOTICE:  Completed batch 9. Total unique positions so far: 28824879
+NOTICE:  Starting batch 10 (45000001 to 50000000)
+NOTICE:  Processing positions from ID 45000001 to 50000000
+NOTICE:  Processed 3591975 unique positions from IDs 45000001 to 50000000
+NOTICE:  Completed batch 10. Total unique positions so far: 31970339
+NOTICE:  Starting batch 11 (50000001 to 55000000)
+NOTICE:  Processing positions from ID 50000001 to 55000000
+NOTICE:  Processed 3571472 unique positions from IDs 50000001 to 55000000
+NOTICE:  Completed batch 11. Total unique positions so far: 35077034
+NOTICE:  Starting batch 12 (55000001 to 60000000)
+NOTICE:  Processing positions from ID 55000001 to 60000000
+NOTICE:  Processed 3565415 unique positions from IDs 55000001 to 60000000
+NOTICE:  Completed batch 12. Total unique positions so far: 38164211
+NOTICE:  Starting batch 13 (60000001 to 65000000)
+NOTICE:  Processing positions from ID 60000001 to 65000000
+NOTICE:  Processed 3566361 unique positions from IDs 60000001 to 65000000
+NOTICE:  Completed batch 13. Total unique positions so far: 41242083
+NOTICE:  Starting batch 14 (65000001 to 70000000)
+NOTICE:  Processing positions from ID 65000001 to 70000000
+NOTICE:  Processed 3575071 unique positions from IDs 65000001 to 70000000
+NOTICE:  Completed batch 14. Total unique positions so far: 44314845
+NOTICE:  Starting batch 15 (70000001 to 75000000)
+NOTICE:  Processing positions from ID 70000001 to 75000000
+NOTICE:  Processed 3582699 unique positions from IDs 70000001 to 75000000
+NOTICE:  Completed batch 15. Total unique positions so far: 47384615
+NOTICE:  Starting batch 16 (75000001 to 80000000)
+NOTICE:  Processing positions from ID 75000001 to 80000000
+NOTICE:  Processed 3583609 unique positions from IDs 75000001 to 80000000
+NOTICE:  Completed batch 16. Total unique positions so far: 50448160
+NOTICE:  Starting batch 17 (80000001 to 85000000)
+NOTICE:  Processing positions from ID 80000001 to 85000000
+NOTICE:  Processed 3594760 unique positions from IDs 80000001 to 85000000
+NOTICE:  Completed batch 17. Total unique positions so far: 53512833
+NOTICE:  Starting batch 18 (85000001 to 90000000)
+NOTICE:  Processing positions from ID 85000001 to 90000000
+NOTICE:  Processed 3585148 unique positions from IDs 85000001 to 90000000
+NOTICE:  Completed batch 18. Total unique positions so far: 56558231
+NOTICE:  Starting batch 19 (90000001 to 95000000)
+NOTICE:  Processing positions from ID 90000001 to 95000000
+NOTICE:  Processed 3594337 unique positions from IDs 90000001 to 95000000
+NOTICE:  Completed batch 19. Total unique positions so far: 59607987
+NOTICE:  Starting batch 20 (95000001 to 100000000)
+NOTICE:  Processing positions from ID 95000001 to 100000000
+NOTICE:  Processed 3589631 unique positions from IDs 95000001 to 100000000
+NOTICE:  Completed batch 20. Total unique positions so far: 62642364
+NOTICE:  Starting batch 21 (100000001 to 105000000)
+NOTICE:  Processing positions from ID 100000001 to 105000000
+NOTICE:  Processed 3589376 unique positions from IDs 100000001 to 105000000
+NOTICE:  Completed batch 21. Total unique positions so far: 65671132
+NOTICE:  Starting batch 22 (105000001 to 110000000)
+NOTICE:  Processing positions from ID 105000001 to 110000000
+NOTICE:  Processed 3590755 unique positions from IDs 105000001 to 110000000
+NOTICE:  Completed batch 22. Total unique positions so far: 68692541
+NOTICE:  Starting batch 23 (110000001 to 115000000)
+NOTICE:  Processing positions from ID 110000001 to 115000000
+NOTICE:  Processed 3592779 unique positions from IDs 110000001 to 115000000
+NOTICE:  Completed batch 23. Total unique positions so far: 71710414
+NOTICE:  Starting batch 24 (115000001 to 120000000)
+NOTICE:  Processing positions from ID 115000001 to 120000000
+NOTICE:  Processed 3563140 unique positions from IDs 115000001 to 120000000
+NOTICE:  Completed batch 24. Total unique positions so far: 74683001
+NOTICE:  Starting batch 25 (120000001 to 125000000)
+NOTICE:  Processing positions from ID 120000001 to 125000000
+NOTICE:  Processed 3569337 unique positions from IDs 120000001 to 125000000
+NOTICE:  Completed batch 25. Total unique positions so far: 77661273
+NOTICE:  Starting batch 26 (125000001 to 130000000)
+NOTICE:  Processing positions from ID 125000001 to 130000000
+NOTICE:  Processed 3515836 unique positions from IDs 125000001 to 130000000
+NOTICE:  Completed batch 26. Total unique positions so far: 80643658
+NOTICE:  Starting batch 27 (130000001 to 135000000)
+NOTICE:  Processing positions from ID 130000001 to 135000000
+NOTICE:  Processed 3493193 unique positions from IDs 130000001 to 135000000
+NOTICE:  Completed batch 27. Total unique positions so far: 83585838
+NOTICE:  Starting batch 28 (135000001 to 140000000)
+NOTICE:  Processing positions from ID 135000001 to 140000000
+NOTICE:  Processed 3509680 unique positions from IDs 135000001 to 140000000
+NOTICE:  Completed batch 28. Total unique positions so far: 86533659
+NOTICE:  Starting batch 29 (140000001 to 145000000)
+NOTICE:  Processing positions from ID 140000001 to 145000000
+NOTICE:  Processed 3503012 unique positions from IDs 140000001 to 145000000
+NOTICE:  Completed batch 29. Total unique positions so far: 89462380
+NOTICE:  Starting batch 30 (145000001 to 150000000)
+NOTICE:  Processing positions from ID 145000001 to 150000000
+NOTICE:  Processed 3503267 unique positions from IDs 145000001 to 150000000
+NOTICE:  Completed batch 30. Total unique positions so far: 92380147
+NOTICE:  Starting batch 31 (150000001 to 155000000)
+NOTICE:  Processing positions from ID 150000001 to 155000000
+NOTICE:  Processed 3507508 unique positions from IDs 150000001 to 155000000
+NOTICE:  Completed batch 31. Total unique positions so far: 95296031
+NOTICE:  Starting batch 32 (155000001 to 160000000)
+NOTICE:  Processing positions from ID 155000001 to 160000000
+NOTICE:  Processed 3484358 unique positions from IDs 155000001 to 160000000
+NOTICE:  Completed batch 32. Total unique positions so far: 98183283
+NOTICE:  Starting batch 33 (160000001 to 165000000)
+NOTICE:  Processing positions from ID 160000001 to 165000000
