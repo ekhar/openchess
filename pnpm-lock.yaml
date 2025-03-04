@@ -117,6 +117,9 @@ importers:
       recharts:
         specifier: ^2.15.1
         version: 2.15.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      stockfish.wasm:
+        specifier: ^0.10.0
+        version: 0.10.0
       supabase:
         specifier: ^2.15.8
         version: 2.15.8
@@ -2602,6 +2605,9 @@ packages:
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
+
+  stockfish.wasm@0.10.0:
+    resolution: {integrity: sha512-OTvOlz0ijCSmIb/YvOZ1Dn6vwZVS4Ge3N+RcV0d2b6LXUtCJ9UwmBHypRW3DZ+VXf8WNm7E3P+6jMTVvb3QaBg==}
 
   streamsearch@1.1.0:
     resolution: {integrity: sha512-Mcc5wHehp9aXz1ax6bZUyY5afg9u2rv5cqQI3mRrYkGC8rW2hM02jWuwjtL++LS5qinSyhj2QfLyNsuc+VsExg==}
@@ -5462,6 +5468,8 @@ snapshots:
     optional: true
 
   source-map-js@1.2.1: {}
+
+  stockfish.wasm@0.10.0: {}
 
   streamsearch@1.1.0: {}
 

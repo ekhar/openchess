@@ -36,6 +36,7 @@
     "react-chessboard": "^4.7.2",
     "react-dom": "19.0.0",
     "recharts": "^2.15.1",
+    "stockfish.wasm": "^0.10.0",
     "supabase": "^2.15.8",
     "tailwind-merge": "^3.0.2",
     "tailwindcss-animate": "^1.0.7",
