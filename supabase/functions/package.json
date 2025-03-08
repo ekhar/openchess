@@ -11,7 +11,8 @@
     "deploy": "supabase functions deploy"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.1"
+    "@supabase/supabase-js": "^2.49.1",
+    "@openchess/chess-compression-wasm": "workspace:*"
   },
   "devDependencies": {
     "supabase": "^2.15.8"

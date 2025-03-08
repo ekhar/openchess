@@ -15,15 +15,13 @@
   },
   "devDependencies": {
     "prettier": "^3.5.0",
-    "supabase": "^2.15.8",
     "turbo": "^2.4.3",
-    "typescript": "5.7.3",
-    "wasm-pack": "^0.13.1"
+    "typescript": "5.7.3"
   },
   "engines": {
     "node": ">=14.0.0"
   },
-  "packageManager": "pnpm@9.7.1",
+  "packageManager": "pnpm@10.6.1",
   "pnpm": {
     "overrides": {
       "@types/react": "npm:types-react@19.0.0-rc.1",
