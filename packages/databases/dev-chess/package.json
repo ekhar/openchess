@@ -1,0 +1,15 @@
+{
+  "name": "dev-chess-database",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chess database package for storing and analyzing chess games",
+  "scripts": {
+    "db:create-seed": "bash scripts/create_seed.sh",
+    "db:apply-seed": "bash scripts/docker_apply_seed.sh",
+    "db:start": "docker compose up -d",
+    "db:stop": "docker compose down",
+    "db:logs": "docker logs -f chess-db-local",
+    "db:status": "docker ps | grep chess-db-local",
+    "db:psql": "docker exec -it chess-db-local psql -U admin -d chess_database"
+  }
+}
